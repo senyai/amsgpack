@@ -201,34 +201,16 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
       return -1;
     }
     if (bytes_size <= 0xff) {
-      if (PyByteArray_Resize(byte_array, pos + 2 + bytes_size) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = 0xc4;
-      data[1] = bytes_size;
+      AMSGPACK_RESIZE(2 + bytes_size);
+      put2(data, '\xc4', bytes_size);
       pos = 2;
     } else if (bytes_size <= 0xffff) {
-      if (PyByteArray_Resize(byte_array, pos + 3 + bytes_size) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      unsigned short size2 = bytes_size;
-      data[0] = '\xc5';
-      data[1] = ((char*)&size2)[1];
-      data[2] = ((char*)&size2)[0];
+      AMSGPACK_RESIZE(3 + bytes_size);
+      put3(data, '\xc5', bytes_size);
       pos = 3;
     } else if (bytes_size <= 0xffffffff) {
-      if (PyByteArray_Resize(byte_array, pos + 5 + bytes_size) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      unsigned int size4 = bytes_size;
-      data[0] = '\xc6';
-      data[1] = ((char*)&size4)[3];
-      data[2] = ((char*)&size4)[2];
-      data[3] = ((char*)&size4)[1];
-      data[4] = ((char*)&size4)[0];
+      AMSGPACK_RESIZE(5 + bytes_size);
+      put5(data, '\xc6', (unsigned int)bytes_size);
       pos = 5;
     } else {
       PyErr_SetString(PyExc_ValueError,
