@@ -1,5 +1,58 @@
 #include <Python.h>
 
+#define VERSION "0.0.1"
+
+static inline void put2(char* dst, char header, char value) {
+  dst[0] = header;
+  dst[1] = value;
+}
+
+static inline void put3(char* dst, char header, unsigned short value) {
+  dst[0] = header;
+  dst[1] = ((char*)&value)[1];
+  dst[2] = ((char*)&value)[0];
+}
+
+static inline void put5(char* dst, char header, unsigned int value) {
+  dst[0] = header;
+  dst[1] = ((char*)&value)[3];
+  dst[2] = ((char*)&value)[2];
+  dst[3] = ((char*)&value)[1];
+  dst[4] = ((char*)&value)[0];
+}
+
+static inline void put9(char* dst, char header, unsigned long long value) {
+  dst[0] = header;
+  dst[1] = ((char*)&value)[7];
+  dst[2] = ((char*)&value)[6];
+  dst[3] = ((char*)&value)[5];
+  dst[4] = ((char*)&value)[4];
+  dst[5] = ((char*)&value)[3];
+  dst[6] = ((char*)&value)[2];
+  dst[7] = ((char*)&value)[1];
+  dst[8] = ((char*)&value)[0];
+}
+
+static inline void put9_dbl(char* dst, char header, double value) {
+  dst[0] = header;
+  dst[1] = ((char*)&value)[7];
+  dst[2] = ((char*)&value)[6];
+  dst[3] = ((char*)&value)[5];
+  dst[4] = ((char*)&value)[4];
+  dst[5] = ((char*)&value)[3];
+  dst[6] = ((char*)&value)[2];
+  dst[7] = ((char*)&value)[1];
+  dst[8] = ((char*)&value)[0];
+}
+
+#define AMSGPACK_RESIZE(n)                                \
+  do {                                                    \
+    if (PyByteArray_Resize(byte_array, pos + (n)) != 0) { \
+      return -1;                                          \
+    }                                                     \
+    data = PyByteArray_AS_STRING(byte_array) + pos;       \
+  } while (0)
+
 // returns: -1 - failure
 //           0 - success
 static int packb_(PyObject* obj, PyObject* byte_array, int level) {
@@ -10,10 +63,7 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     return -1;
   }
   if (PyBool_Check(obj)) {
-    if (PyByteArray_Resize(byte_array, pos + 1) != 0) {
-      return -1;
-    }
-    data = PyByteArray_AS_STRING(byte_array) + pos;
+    AMSGPACK_RESIZE(1);
     if (obj == Py_True) {
       data[0] = '\xc3';
     } else {
@@ -21,133 +71,68 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     }
   } else if (PyFloat_CheckExact(obj)) {
     // https://docs.python.org/3/c-api/float.html
-    if (PyByteArray_Resize(byte_array, pos + 9) != 0) {
-      return -1;
-    }
-    data = PyByteArray_AS_STRING(byte_array) + pos;
-
+    AMSGPACK_RESIZE(9);
     double const value = PyFloat_AS_DOUBLE(obj);
-    data[0] = '\xcb';
-    PyFloat_Pack8(value, data + 1, 0);
+    put9_dbl(data, '\xcb', value);
   } else if (PyLong_CheckExact(obj)) {
     // https://docs.python.org/3/c-api/long.html
     PyObject* part;
     long const value = PyLong_AsLong(obj);
     if (-0x20 <= value && value < 0x80) {
-      if (PyByteArray_Resize(byte_array, pos + 1) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
+      AMSGPACK_RESIZE(1);
       data[0] = (char)value;
-      // part = PyBytes_FromStringAndSize(&i8, 1);
     } else if (0x80 <= value && value <= UCHAR_MAX) {
-      if (PyByteArray_Resize(byte_array, pos + 2) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = '\xcc';
-      data[1] = (char)value;
+      AMSGPACK_RESIZE(2);
+      put2(data, '\xcc', (char)value);
     } else if (SCHAR_MIN <= value && value < 0) {
-      if (PyByteArray_Resize(byte_array, pos + 2) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = '\xd0';
-      data[1] = (char)value;
+      AMSGPACK_RESIZE(2);
+      put2(data, '\xd0', (char)value);
     } else if (UCHAR_MAX < value && value <= 0xffff) {
-      if (PyByteArray_Resize(byte_array, pos + 3) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = '\xcd';
-      PyLong_AsNativeBytes(obj, data + 1, 2, 0);
+      AMSGPACK_RESIZE(3);
+      put3(data, '\xcd', value);
     } else if (SHRT_MIN <= value && value < -0x80) {
-      if (PyByteArray_Resize(byte_array, pos + 3) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = '\xd1';
-
-      PyLong_AsNativeBytes(obj, data + 1, 2, 0);
+      AMSGPACK_RESIZE(3);
+      put3(data, '\xd1', (unsigned short)value);
     } else if (0xffff < value && value <= 0xffffffff) {
-      if (PyByteArray_Resize(byte_array, pos + 5) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
+      AMSGPACK_RESIZE(5);
 
-      data[0] = '\xce';
-      PyLong_AsNativeBytes(obj, data + 1, 4, 0);
+      put5(data, '\xce', value);
     } else if (-0x7fffffff <= value && value < -0x8000) {
-      if (PyByteArray_Resize(byte_array, pos + 5) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = '\xd2';
-      PyLong_AsNativeBytes(obj, data + 1, 4, 0);
+      AMSGPACK_RESIZE(5);
+      put5(data, '\xd2', (unsigned int)value);
     } else if (0xffffffff < value /*&& value <= 0xffffffffffffffff*/) {
-      if (PyByteArray_Resize(byte_array, pos + 9) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = '\xcf';
-
-      PyLong_AsNativeBytes(obj, data + 1, 8, 0);
+      AMSGPACK_RESIZE(9);
+      put9(data, '\xcf', value);
     } else if (/*-0x8000000000000000 <= value &&*/ value < -0x80000000LL) {
-      if (PyByteArray_Resize(byte_array, pos + 9) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = '\xd3';
-
-      PyLong_AsNativeBytes(obj, data + 1, 8, 0);
+      AMSGPACK_RESIZE(9);
+      put9(data, '\xd3', value);
     } else {
       PyErr_SetString(PyExc_ValueError,
                       "Integral value is out of MessagePack range");
       return -1;
     }
   } else if (obj == Py_None) {
-    if (PyByteArray_Resize(byte_array, pos + 1) != 0) {
-      return -1;
-    }
-    data = PyByteArray_AS_STRING(byte_array) + pos;
+    AMSGPACK_RESIZE(1);
     data[0] = '\xc0';
   } else if (PyUnicode_CheckExact(obj)) {
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size = 0;
     const char* u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
     if (u8size <= 0xff) {
-      if (PyByteArray_Resize(byte_array, pos + 2 + u8size) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-
-      data[0] = 0xd9;
-      data[1] = (char)u8size;
+      AMSGPACK_RESIZE(2 + u8size);
+      put2(data, '\xd9', (char)u8size);
       memcpy(data + 2, u8string, u8size);
       return 0;
     }
     if (u8size <= 0xffff) {
-      if (PyByteArray_Resize(byte_array, pos + 3 + u8size) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-
-      data[0] = 0xda;
-      data[1] = ((char*)&u8size)[1];
-      data[2] = ((char*)&u8size)[0];
+      AMSGPACK_RESIZE(3 + u8size);
+      put3(data, '\xda', (unsigned short)u8size);
       memcpy(data + 3, u8string, u8size);
       return 0;
     }
     if (u8size <= 0xffffffff) {
-      if (PyByteArray_Resize(byte_array, pos + 5 + u8size) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      data[0] = 0xdb;
-      data[1] = ((char*)&u8size)[3];
-      data[2] = ((char*)&u8size)[2];
-      data[3] = ((char*)&u8size)[1];
-      data[4] = ((char*)&u8size)[0];
+      AMSGPACK_RESIZE(5 + u8size);
+      put5(data, '\xdb', u8size);
       memcpy(data + 5, u8string, u8size);
       return 0;
     }
@@ -158,31 +143,14 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     // https://docs.python.org/3.11/c-api/list.html
     Py_ssize_t const list_size = PyList_Size(obj);
     if (list_size <= 15) {
-      if (PyByteArray_Resize(byte_array, pos + 1) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
+      AMSGPACK_RESIZE(1);
       data[0] = 0x90 + list_size;
     } else if (list_size <= 0xffff) {
-      if (PyByteArray_Resize(byte_array, pos + 3) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      unsigned short size2 = list_size;
-      data[0] = '\xdc';
-      data[1] = ((char*)&size2)[1];
-      data[2] = ((char*)&size2)[0];
+      AMSGPACK_RESIZE(3);
+      put3(data, '\xdc', (unsigned short)list_size);
     } else if (list_size <= 0xffffffff) {
-      if (PyByteArray_Resize(byte_array, pos + 5) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      unsigned int size4 = list_size;
-      data[0] = '\xdd';
-      data[1] = ((char*)&size4)[3];
-      data[2] = ((char*)&size4)[2];
-      data[3] = ((char*)&size4)[1];
-      data[4] = ((char*)&size4)[0];
+      AMSGPACK_RESIZE(5);
+      put5(data, '\xdd', (unsigned int)list_size);
     } else {
       PyErr_SetString(PyExc_ValueError,
                       "List length is out of MessagePack range");
@@ -199,31 +167,14 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     Py_ssize_t const dict_size = PyDict_Size(obj);
 
     if (dict_size <= 15) {
-      if (PyByteArray_Resize(byte_array, pos + 1) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
+      AMSGPACK_RESIZE(1);
       data[0] = 0x80 + dict_size;
     } else if (dict_size <= 0xffff) {
-      if (PyByteArray_Resize(byte_array, pos + 3) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      unsigned short size2 = dict_size;
-      data[0] = '\xde';
-      data[1] = ((char*)&size2)[1];
-      data[2] = ((char*)&size2)[0];
+      AMSGPACK_RESIZE(3);
+      put3(data, '\xde', (unsigned short)dict_size);
     } else if (dict_size <= 0xffffffff) {
-      if (PyByteArray_Resize(byte_array, pos + 5) != 0) {
-        return -1;
-      }
-      data = PyByteArray_AS_STRING(byte_array) + pos;
-      unsigned int size4 = dict_size;
-      data[0] = '\xdf';
-      data[1] = ((char*)&size4)[3];
-      data[2] = ((char*)&size4)[2];
-      data[3] = ((char*)&size4)[1];
-      data[4] = ((char*)&size4)[0];
+      AMSGPACK_RESIZE(5);
+      put5(data, '\xdf', (unsigned int)dict_size);
     } else {
       PyErr_SetString(PyExc_ValueError,
                       "Dict length is out of MessagePack range");
@@ -322,17 +273,25 @@ static PyObject* packb(PyObject* module, PyObject* const* args,
   return byte_array;
 }
 
-static PyMethodDef MyMethods[] = {
+static PyMethodDef AMsgPackMethods[] = {
     {"packb", (PyCFunction)packb, METH_FASTCALL,
      "Serialize ``obj`` to a MessagePack formatted ``bytes``."},
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
-static struct PyModuleDef mymodule = {
-    PyModuleDef_HEAD_INIT,
-    "amsgpack",  // Name of the module
-    NULL,        // Module documentation
-    -1,          // Size of per-interpreter state of the module
-    MyMethods};
+static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
+                                             .m_name = "amsgpack",
+                                             .m_doc = NULL,
+                                             .m_size = -1,
+                                             .m_methods = AMsgPackMethods};
 
-PyMODINIT_FUNC PyInit_amsgpack(void) { return PyModule_Create(&mymodule); }
+PyMODINIT_FUNC PyInit_amsgpack(void) {
+  PyObject* module = PyModule_Create(&amsgpack_module);
+  if (module == NULL) {
+    return NULL;
+  }
+  if (PyModule_AddStringConstant(module, "__version__", VERSION) != 0) {
+    return NULL;
+  }
+  return module;
+}

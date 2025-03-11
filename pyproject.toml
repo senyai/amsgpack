@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=74.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amsgpack"
+version = "0.0.1"
+authors = [
+  { name="Arseniy Terekhin", email="senyai@gmail.com" },
+]
+description = "Another MessagePack library"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+[tool.setuptools]
+ext-modules = [
+    {name = "amsgpack", sources = ["amsgpack.c"], py-limited-api = true}
+]
+[tool.black]
+line-length = 79
