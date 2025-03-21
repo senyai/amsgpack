@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-clang-format -style=google -i amsgpack.c
+clang-format -style=google -i deque.h amsgpack.c
