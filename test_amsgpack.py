@@ -1,5 +1,6 @@
+from typing import Any
 from unittest import TestCase
-from amsgpack import packb
+from amsgpack import packb, Unpacker
 from math import pi
 from msgpack import unpackb
 
@@ -81,3 +82,38 @@ class PackbTest(TestCase):
         self.assertEqual(unpackb(packb(value)), value)
         value = "A" * 0x20000
         self.assertEqual(unpackb(packb(value)), value)
+
+
+class UnpackerTest(TestCase):
+    def test_feed_non_bytes(self):
+        u = Unpacker()
+        with self.assertRaises(TypeError) as context:
+            u.feed("")
+        self.assertEqual(
+            str(context.exception), "a bytes object is required, not 'str'"
+        )
+
+    def test_unpack_none(self):
+        u = Unpacker()
+        u.feed(b"\xc0")
+        self.safeSequenceEqual(u, (None,))
+
+    def test_unpack_bool(self):
+        u = Unpacker()
+        u.feed(b"\xc2\xc3")
+        self.safeSequenceEqual(u, (False, True))
+
+    def test_double(self):
+        u = Unpacker()
+        u.feed(b"\xcb@\t!\xfbTD-\x11")
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def safeSequenceEqual(
+        self, unpacker: Unpacker, ref: tuple[Any, ...]
+    ) -> None:
+        it = iter(unpacker)
+        self.assertIs(it, unpacker)
+        for item in ref:
+            self.assertEqual(next(it), item)
+        with self.assertRaises(StopIteration):
+            next(it)
