@@ -16,5 +16,7 @@ name = "amsgpack"
 sources = ["amsgpack.c"]
 py-limited-api = true
 extra-compile-args = ["-O3"]
+[tool.setuptools.package-data]
+"amsgpack" = ["py.typed"]
 [tool.black]
 line-length = 79
