@@ -1,0 +1,13 @@
+from typing import TypeAlias
+from collections.abc import Sequence
+
+Value: TypeAlias = (
+    dict[str, "Value"] | Sequence["Value"] | str | int | float | bool | None
+)
+
+class Unpacker:
+    def feed(self, data: bytes) -> None: ...
+    def __iter__(self) -> "Unpacker": ...
+    def __next__(self) -> Value: ...
+
+def packb(obj: Value) -> bytes: ...

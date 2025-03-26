@@ -309,11 +309,7 @@ PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     }
 
     // init deque
-    self->deque.size = 0;
-    self->deque.pos = 0;
-    self->deque.deque_first = NULL;
-    self->deque.deque_last = NULL;
-
+    memset(&self->deque, 0, sizeof(Deque));
     // init parser
     memset(&self->parser, 0, sizeof(Parser));
     self->parser.actions = &PyTuple_GET_ITEM(actions, 0);
@@ -345,7 +341,7 @@ static PyObject* Unpacker_iternext(PyObject* arg0) {
       case '\xcb': {  // double
         if (deque_has_n_next_byte(&self->deque, 8)) {
           char* data = 0;
-          deque_read_bytes(&data, &self->deque, 8);
+          char* allocated = deque_read_bytes(&data, &self->deque, 8);
           if (data == NULL) {
             return NULL;
           }
@@ -359,6 +355,9 @@ static PyObject* Unpacker_iternext(PyObject* arg0) {
           value_bytes[5] = data[2];
           value_bytes[6] = data[1];
           value_bytes[7] = data[0];
+          if (allocated) {
+            PyMem_Free(allocated);
+          }
           return PyFloat_FromDouble(value);
         }
         PyObject* errorMessage = PyUnicode_FromFormat(

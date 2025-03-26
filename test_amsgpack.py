@@ -1,8 +1,12 @@
-from typing import Any
+from collections.abc import Sequence
+from math import pi
 from unittest import TestCase
 from amsgpack import packb, Unpacker
-from math import pi
 from msgpack import unpackb
+
+Value = (
+    dict[str, "Value"] | Sequence["Value"] | str | int | float | bool | None
+)
 
 
 class PackbTest(TestCase):
@@ -85,6 +89,9 @@ class PackbTest(TestCase):
 
 
 class UnpackerTest(TestCase):
+    def test_feed_nothing(self):
+        self.safeSequenceEqual(Unpacker(), ())
+
     def test_feed_non_bytes(self):
         u = Unpacker()
         with self.assertRaises(TypeError) as context:
@@ -108,12 +115,24 @@ class UnpackerTest(TestCase):
         u.feed(b"\xcb@\t!\xfbTD-\x11")
         self.safeSequenceEqual(u, (3.14159265358979,))
 
+    def test_feed_2_bytes(self):
+        u = Unpacker()
+        u.feed(b"\xc2")
+        u.feed(b"\xc3")
+        self.safeSequenceEqual(u, (False, True))
+
+    def test_feed_double_byte_by_byte(self):
+        u = Unpacker()
+        for byte in b"\xcb@\t!\xfbTD-\x11":
+            u.feed(bytes((byte,)))
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
     def safeSequenceEqual(
-        self, unpacker: Unpacker, ref: tuple[Any, ...]
+        self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:
         it = iter(unpacker)
         self.assertIs(it, unpacker)
-        for item in ref:
-            self.assertEqual(next(it), item)
+        for idx, item in enumerate(ref):
+            self.assertEqual(next(it), item, f"{idx=}")
         with self.assertRaises(StopIteration):
             next(it)
