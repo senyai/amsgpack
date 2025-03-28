@@ -334,12 +334,13 @@ static PyObject* Unpacker_iternext(PyObject* arg0) {
   if (self->parser.stack_length) {
     //...
   }
-  char next_byte = deque_read_byte(&self->deque);
+  char next_byte = deque_peek_byte(&self->deque);
   PyObject* action = self->parser.actions[(unsigned char)next_byte];
   if (PyBytes_CheckExact(action)) {
     switch (next_byte) {
       case '\xcb': {  // double
         if (deque_has_n_next_byte(&self->deque, 8)) {
+          deque_advance_one_byte(&self->deque);
           char* data = 0;
           char* allocated = deque_read_bytes(&data, &self->deque, 8);
           if (data == NULL) {
@@ -360,13 +361,7 @@ static PyObject* Unpacker_iternext(PyObject* arg0) {
           }
           return PyFloat_FromDouble(value);
         }
-        PyObject* errorMessage = PyUnicode_FromFormat(
-            "NO BYTES FOR DOUBLE: (%d@%d)", self->deque.size, self->deque.pos);
-        PyErr_SetObject(PyExc_TypeError, errorMessage);
-        Py_XDECREF(errorMessage);
-
         return NULL;
-        break;
       }
     }
     PyObject* errorMessage =
@@ -375,6 +370,7 @@ static PyObject* Unpacker_iternext(PyObject* arg0) {
     Py_XDECREF(errorMessage);
     return NULL;
   }
+  deque_advance_one_byte(&self->deque);
   Py_INCREF(action);
   return action;
 }

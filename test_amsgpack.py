@@ -127,6 +127,15 @@ class UnpackerTest(TestCase):
             u.feed(bytes((byte,)))
         self.safeSequenceEqual(u, (3.14159265358979,))
 
+    def test_feed_double_byte_by_byte_and_iterate(self):
+        u = Unpacker()
+        for byte in b"\xcb@\t!\xfbTD-\x11":
+            u.feed(bytes((byte,)))
+            if byte == 0xcb:
+                with self.assertRaises(StopIteration):
+                    next(u)
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
     def test_feed_double_2_bytes_sequence(self):
         u = Unpacker()
         pi_bytes =  b"\xcb@\t!\xfbTD-\x11"

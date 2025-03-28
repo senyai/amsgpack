@@ -116,6 +116,26 @@ static char *deque_read_bytes(char const **bytes, Deque *deque,
   return new_mem;
 }
 
+/*static inline char deque_read_byte(Deque *deque) {
+  assert(deque->deque_first);
+  assert(deque->deque_last);
+  assert(deque->pos < deque->size);
+  PyObject *obj = deque->deque_first->bytes;
+  char byte = PyBytes_AS_STRING(obj)[deque->pos++];
+  Py_ssize_t size_first = PyBytes_GET_SIZE(obj);
+  if (size_first == deque->pos) {
+    deque_pop_first(deque, size_first);
+  }
+  return byte;
+}*/
+
+static inline char deque_peek_byte(Deque *deque) {
+  assert(deque->deque_first);
+  PyObject *obj = deque->deque_first->bytes;
+  char byte = PyBytes_AS_STRING(obj)[deque->pos];
+  return byte;
+}
+
 static inline char deque_read_byte(Deque *deque) {
   assert(deque->deque_first);
   assert(deque->deque_last);
@@ -129,6 +149,11 @@ static inline char deque_read_byte(Deque *deque) {
   return byte;
 }
 
-static inline void deque_advance(Deque *deque, Py_ssize_t size) {
+static inline void deque_advance_one_byte(Deque *deque) {
+  Py_ssize_t size = 1;
   deque->pos += size;
+  Py_ssize_t size_first = PyBytes_GET_SIZE(deque->deque_first->bytes);
+  if (size_first == deque->pos) {
+    deque_pop_first(deque, size_first);
+  }
 }
