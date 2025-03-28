@@ -127,6 +127,15 @@ class UnpackerTest(TestCase):
             u.feed(bytes((byte,)))
         self.safeSequenceEqual(u, (3.14159265358979,))
 
+    def test_feed_double_2_bytes_sequence(self):
+        u = Unpacker()
+        pi_bytes =  b"\xcb@\t!\xfbTD-\x11"
+        for idx in range(0, len(pi_bytes), 2):
+            u.feed(bytes(
+                (*pi_bytes[idx: idx+2],)
+            ))
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
     def safeSequenceEqual(
         self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:

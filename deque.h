@@ -89,12 +89,13 @@ static char *deque_read_bytes(char const **bytes, Deque *deque,
   if (new_mem == NULL) {
     return NULL;
   }
-  memcpy(new_mem, start, size_first - deque->pos);
+  Py_ssize_t copy_size = size_first - deque->pos;
+  memcpy(new_mem, start, copy_size);
   deque_pop_first(deque, size_first);
-  Py_ssize_t left_to_copy = requested_size - size_first;
-  Py_ssize_t copy_size = 0;
+  Py_ssize_t left_to_copy = requested_size - copy_size;
+  // copy_size = 0;
   assert(left_to_copy > 0);
-  for (Py_ssize_t char_idx = size_first; char_idx < requested_size;) {
+  for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
     Py_ssize_t iter_size = PyBytes_GET_SIZE(deque->deque_first->bytes);
     char const *iter_data = PyBytes_AS_STRING(deque->deque_first->bytes);
     Py_ssize_t copy_size = MIN(iter_size, left_to_copy);
