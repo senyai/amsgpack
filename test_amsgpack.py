@@ -1,7 +1,12 @@
-from unittest import TestCase
-from amsgpack import packb
+from collections.abc import Sequence
 from math import pi
+from unittest import TestCase
+from amsgpack import packb, Unpacker
 from msgpack import unpackb
+
+Value = (
+    dict[str, "Value"] | Sequence["Value"] | str | int | float | bool | None
+)
 
 
 class PackbTest(TestCase):
@@ -81,3 +86,71 @@ class PackbTest(TestCase):
         self.assertEqual(unpackb(packb(value)), value)
         value = "A" * 0x20000
         self.assertEqual(unpackb(packb(value)), value)
+
+
+class UnpackerTest(TestCase):
+    def test_feed_nothing(self):
+        self.safeSequenceEqual(Unpacker(), ())
+
+    def test_feed_non_bytes(self):
+        u = Unpacker()
+        with self.assertRaises(TypeError) as context:
+            u.feed("")
+        self.assertEqual(
+            str(context.exception), "a bytes object is required, not 'str'"
+        )
+
+    def test_unpack_none(self):
+        u = Unpacker()
+        u.feed(b"\xc0")
+        self.safeSequenceEqual(u, (None,))
+
+    def test_unpack_bool(self):
+        u = Unpacker()
+        u.feed(b"\xc2\xc3")
+        self.safeSequenceEqual(u, (False, True))
+
+    def test_double(self):
+        u = Unpacker()
+        u.feed(b"\xcb@\t!\xfbTD-\x11")
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def test_feed_2_bytes(self):
+        u = Unpacker()
+        u.feed(b"\xc2")
+        u.feed(b"\xc3")
+        self.safeSequenceEqual(u, (False, True))
+
+    def test_feed_double_byte_by_byte(self):
+        u = Unpacker()
+        for byte in b"\xcb@\t!\xfbTD-\x11":
+            u.feed(bytes((byte,)))
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def test_feed_double_byte_by_byte_and_iterate(self):
+        u = Unpacker()
+        for byte in b"\xcb@\t!\xfbTD-\x11":
+            u.feed(bytes((byte,)))
+            if byte == 0xcb:
+                with self.assertRaises(StopIteration):
+                    next(u)
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def test_feed_double_2_bytes_sequence(self):
+        u = Unpacker()
+        pi_bytes =  b"\xcb@\t!\xfbTD-\x11"
+        for idx in range(0, len(pi_bytes), 2):
+            u.feed(bytes(
+                (*pi_bytes[idx: idx+2],)
+            ))
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def safeSequenceEqual(
+        self, unpacker: Unpacker, ref: tuple[Value, ...]
+    ) -> None:
+        it = iter(unpacker)
+        self.assertIs(it, unpacker)
+        for idx, item in enumerate(ref):
+            self.assertEqual(next(it), item, f"{idx=}")
+        with self.assertRaises(StopIteration):
+            next(it)
