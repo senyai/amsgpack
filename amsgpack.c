@@ -335,34 +335,6 @@ parse_next:
   PyObject* parsed_object = msgpack_byte_object[(unsigned char)next_byte];
   if (parsed_object == NULL) {
     switch (next_byte) {
-      case '\xcb': {  // double
-        if (deque_has_n_next_byte(&self->deque, 9)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = 0;
-          char* allocated = deque_read_bytes(&data, &self->deque, 8);
-          if (data == NULL) {
-            return NULL;
-          }
-          double value;
-          char* value_bytes = (char*)&value;
-          value_bytes[0] = data[7];
-          value_bytes[1] = data[6];
-          value_bytes[2] = data[5];
-          value_bytes[3] = data[4];
-          value_bytes[4] = data[3];
-          value_bytes[5] = data[2];
-          value_bytes[6] = data[1];
-          value_bytes[7] = data[0];
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
-            deque_advance_first_bytes(&self->deque, 8);
-          }
-          parsed_object = PyFloat_FromDouble(value);
-          break;
-        }
-        return NULL;
-      }
       case '\x80': {
         parsed_object = PyDict_New();
         if (parsed_object == NULL) {
@@ -482,6 +454,34 @@ parse_next:
           if (parsed_object == NULL) {
             return NULL;
           }
+          break;
+        }
+        return NULL;
+      }
+      case '\xcb': {  // double
+        if (deque_has_n_next_byte(&self->deque, 9)) {
+          deque_advance_first_bytes(&self->deque, 1);
+          char const* data = 0;
+          char* allocated = deque_read_bytes(&data, &self->deque, 8);
+          if (data == NULL) {
+            return NULL;
+          }
+          double value;
+          char* value_bytes = (char*)&value;
+          value_bytes[0] = data[7];
+          value_bytes[1] = data[6];
+          value_bytes[2] = data[5];
+          value_bytes[3] = data[4];
+          value_bytes[4] = data[3];
+          value_bytes[5] = data[2];
+          value_bytes[6] = data[1];
+          value_bytes[7] = data[0];
+          if (allocated) {
+            PyMem_Free(allocated);
+          } else {
+            deque_advance_first_bytes(&self->deque, 8);
+          }
+          parsed_object = PyFloat_FromDouble(value);
           break;
         }
         return NULL;
