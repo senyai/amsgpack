@@ -458,6 +458,11 @@ parse_next:
         }
         return NULL;
       }
+      case '\xc1': {  // (never used)
+        PyErr_SetString(PyExc_ValueError,
+                        "amsgpack: 0xc1 byte must not be used");
+        return NULL;
+      }
       case '\xcb': {  // double
         if (deque_has_n_next_byte(&self->deque, 9)) {
           deque_advance_first_bytes(&self->deque, 1);
