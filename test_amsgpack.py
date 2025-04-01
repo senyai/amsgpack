@@ -179,6 +179,15 @@ class UnpackerTest(TestCase):
         ref = tuple(["A" * i for i in range(32)])
         self.safeSequenceEqual(u, ref)
 
+    def test_never_used(self):
+        u = Unpacker()
+        u.feed(b"\xc1")
+        with self.assertRaises(ValueError) as context:
+            next(u)
+        self.assertEqual(
+            str(context.exception), "amsgpack: 0xc1 byte must not be used"
+        )
+
     def safeSequenceEqual(
         self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:
