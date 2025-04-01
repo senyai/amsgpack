@@ -268,9 +268,11 @@ static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
 static PyObject* msgpack_byte_object[256];
 
 typedef struct {
+  enum Action { LIST_APPEND, DICT_KEY, DICT_VALUE } action;
   PyObject* iterable;
   Py_ssize_t size;
   Py_ssize_t pos;
+  PyObject* key;
 } Stack;
 
 typedef struct {
@@ -361,6 +363,39 @@ parse_next:
         }
         return NULL;
       }
+      case '\x80': {
+        parsed_object = PyDict_New();
+        if (parsed_object == NULL) {
+          return NULL;
+        }
+        deque_advance_first_bytes(&self->deque, 1);
+        break;
+      }
+      case '\x81':
+      case '\x82':
+      case '\x83':
+      case '\x84':
+      case '\x85':
+      case '\x86':
+      case '\x87':
+      case '\x88':
+      case '\x89':
+      case '\x8A':
+      case '\x8B':
+      case '\x8C':
+      case '\x8D':
+      case '\x8E':
+      case '\x8F': {  // fixmap
+        Py_ssize_t const length = next_byte & 0x0f;
+        parsed_object = PyDict_New();
+        deque_advance_first_bytes(&self->deque, 1);
+        Stack const item = {.action = DICT_KEY,
+                            .iterable = parsed_object,
+                            .size = length,
+                            .pos = 0};
+        self->parser.stack[self->parser.stack_length++] = item;
+        goto parse_next;
+      }
       case '\x90':
       case '\x91':
       case '\x92':
@@ -383,8 +418,10 @@ parse_next:
         if (length == 0) {
           break;
         }
-        Stack const item = {
-            .iterable = parsed_object, .size = length, .pos = 0};
+        Stack const item = {.action = LIST_APPEND,
+                            .iterable = parsed_object,
+                            .size = length,
+                            .pos = 0};
         self->parser.stack[self->parser.stack_length++] = item;
         goto parse_next;
       }
@@ -427,7 +464,7 @@ parse_next:
       case '\xBC':
       case '\xBD':
       case '\xBE':
-      case '\xBF': { //fixstr
+      case '\xBF': {  // fixstr
         Py_ssize_t const length = next_byte & 0x1f;
         if (deque_has_n_next_byte(&self->deque, length + 1)) {
           deque_advance_first_bytes(&self->deque, 1);
@@ -464,15 +501,44 @@ parse_next:
   }
   if (self->parser.stack_length > 0) {
     Stack* item = &self->parser.stack[self->parser.stack_length - 1];
-    if (item->pos < item->size) {
-      PyList_SET_ITEM(item->iterable, item->pos++, parsed_object);
-    }
-    if (item->pos == item->size) {
-      parsed_object = item->iterable;
-      memset(item, 0, sizeof(Stack));
-      self->parser.stack_length -= 1;
-    } else {
-      goto parse_next;
+    switch (item->action) {
+      case LIST_APPEND:
+        if (item->pos < item->size) {
+          PyList_SET_ITEM(item->iterable, item->pos++, parsed_object);
+        }
+        if (item->pos == item->size) {
+          parsed_object = item->iterable;
+          memset(item, 0, sizeof(Stack));
+          self->parser.stack_length -= 1;
+        } else {
+          goto parse_next;
+        }
+        break;
+      case DICT_KEY:
+        item->action = DICT_VALUE;
+        item->key = parsed_object;
+        goto parse_next;
+      case DICT_VALUE: {
+        if (item->pos < item->size) {
+          if (PyDict_SetItem(item->iterable, item->key, parsed_object) != 0) {
+            return NULL;
+          }
+          item->pos += 1;
+        }
+        if (item->pos == item->size) {
+          parsed_object = item->iterable;
+          memset(item, 0, sizeof(Stack));
+          self->parser.stack_length -= 1;
+        } else {
+          item->action = DICT_KEY;
+          Py_DECREF(item->key);
+          item->key = NULL;
+          goto parse_next;
+        }
+        break;
+      }
+      default:
+        assert(0);
     }
   }
   return parsed_object;

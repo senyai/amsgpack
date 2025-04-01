@@ -167,6 +167,11 @@ class UnpackerTest(TestCase):
         u.feed(b"\x92\x90\x90")
         self.safeSequenceEqual(u, ([[], []],))
 
+    def test_main_page_example(self):
+        u = Unpacker()
+        u.feed(b"\x82\xa7compact\xc3\xa6schema\x00")
+        self.safeSequenceEqual(u, ({"compact": True, "schema": 0},))
+
     def test_fixstr(self):
         u = Unpacker()
         for i in range(32):
