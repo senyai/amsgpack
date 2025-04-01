@@ -68,20 +68,20 @@ static inline int deque_has_n_next_byte(Deque *deque, Py_ssize_t size) {
 // deque_read_bytes must
 // return NULL, when nothing needs to be freed (PyMem_Free)
 // bytes are NULL when memory error occurred
+// advances the deque for `requested_size` when non NULL is returned
 static char *deque_read_bytes(char const **bytes, Deque *deque,
                               Py_ssize_t const requested_size) {
   assert(*bytes == NULL);
   assert(deque->pos + requested_size <= deque->size);
+  assert(requested_size > 0);
+  assert(deque->deque_first);
   PyObject *const obj = deque->deque_first->bytes;
   Py_ssize_t size_first = PyBytes_GET_SIZE(obj);
   char const *start = PyBytes_AS_STRING(obj) + deque->pos;
   if ((deque->pos + requested_size) <= size_first) {
     // can get a view
     *bytes = start;
-    deque->pos += requested_size;
-    if (deque->pos == requested_size) {
-      deque_pop_first(deque, size_first);
-    }
+    // when view is returned, the used is responsible for advancing the deque
     return NULL;
   }
   // must return copy
@@ -149,10 +149,11 @@ static inline char deque_read_byte(Deque *deque) {
   return byte;
 }
 
-static inline void deque_advance_one_byte(Deque *deque) {
-  Py_ssize_t size = 1;
-  deque->pos += size;
+// advance deque, but not more, than the size of the first item
+static inline void deque_advance_first_bytes(Deque *deque, Py_ssize_t size) {
   Py_ssize_t size_first = PyBytes_GET_SIZE(deque->deque_first->bytes);
+  assert(deque->pos += size <= size_first);
+  deque->pos += size;
   if (size_first == deque->pos) {
     deque_pop_first(deque, size_first);
   }
