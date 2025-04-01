@@ -167,6 +167,13 @@ class UnpackerTest(TestCase):
         u.feed(b"\x92\x90\x90")
         self.safeSequenceEqual(u, ([[], []],))
 
+    def test_fixstr(self):
+        u = Unpacker()
+        for i in range(32):
+            u.feed(bytes([0xA0 + i] + [0x41] * i))
+        ref = tuple(["A" * i for i in range(32)])
+        self.safeSequenceEqual(u, ref)
+
     def safeSequenceEqual(
         self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:

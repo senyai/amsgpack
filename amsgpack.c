@@ -334,8 +334,8 @@ parse_next:
   if (parsed_object == NULL) {
     switch (next_byte) {
       case '\xcb': {  // double
-        if (deque_has_n_next_byte(&self->deque, 8)) {
-          deque_advance_one_byte(&self->deque);
+        if (deque_has_n_next_byte(&self->deque, 9)) {
+          deque_advance_first_bytes(&self->deque, 1);
           char const* data = 0;
           char* allocated = deque_read_bytes(&data, &self->deque, 8);
           if (data == NULL) {
@@ -353,6 +353,8 @@ parse_next:
           value_bytes[7] = data[0];
           if (allocated) {
             PyMem_Free(allocated);
+          } else {
+            deque_advance_first_bytes(&self->deque, 8);
           }
           parsed_object = PyFloat_FromDouble(value);
           break;
@@ -377,7 +379,7 @@ parse_next:
       case '\x9F': {  // fixarray
         Py_ssize_t const length = next_byte & 0x0f;
         parsed_object = PyList_New(length);
-        deque_advance_one_byte(&self->deque);
+        deque_advance_first_bytes(&self->deque, 1);
         if (length == 0) {
           break;
         }
@@ -385,6 +387,67 @@ parse_next:
             .iterable = parsed_object, .size = length, .pos = 0};
         self->parser.stack[self->parser.stack_length++] = item;
         goto parse_next;
+      }
+
+      case '\xA0': {
+        parsed_object = PyUnicode_FromStringAndSize(NULL, 0);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
+        deque_advance_first_bytes(&self->deque, 1);
+        break;
+      }
+      case '\xA1':
+      case '\xA2':
+      case '\xA3':
+      case '\xA4':
+      case '\xA5':
+      case '\xA6':
+      case '\xA7':
+      case '\xA8':
+      case '\xA9':
+      case '\xAA':
+      case '\xAB':
+      case '\xAC':
+      case '\xAD':
+      case '\xAE':
+      case '\xAF':
+      case '\xB0':
+      case '\xB1':
+      case '\xB2':
+      case '\xB3':
+      case '\xB4':
+      case '\xB5':
+      case '\xB6':
+      case '\xB7':
+      case '\xB8':
+      case '\xB9':
+      case '\xBA':
+      case '\xBB':
+      case '\xBC':
+      case '\xBD':
+      case '\xBE':
+      case '\xBF': { //fixstr
+        Py_ssize_t const length = next_byte & 0x1f;
+        if (deque_has_n_next_byte(&self->deque, length + 1)) {
+          deque_advance_first_bytes(&self->deque, 1);
+          char const* data = 0;
+          char* allocated = deque_read_bytes(&data, &self->deque, length);
+          if (data == NULL) {
+            return NULL;
+          }
+          parsed_object = PyUnicode_FromStringAndSize(data, length);
+          if (allocated) {
+            PyMem_Free(allocated);
+          } else {
+            deque_advance_first_bytes(&self->deque, length);
+          }
+          if (parsed_object == NULL) {
+            return NULL;
+          }
+          break;
+        }
+        return NULL;
       }
       default: {
         // temporary not implemented error
@@ -396,7 +459,7 @@ parse_next:
       }
     }
   } else {
-    deque_advance_one_byte(&self->deque);
+    deque_advance_first_bytes(&self->deque, 1);
     Py_INCREF(parsed_object);
   }
   if (self->parser.stack_length > 0) {
