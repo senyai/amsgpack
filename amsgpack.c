@@ -119,6 +119,12 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size = 0;
     const char* u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
+    if (u8size <= 0xf) {
+      AMSGPACK_RESIZE(1 + u8size);
+      data[0] = 0xa0 + u8size;
+      memcpy(data + 1, u8string, u8size);
+      return 0;
+    }
     if (u8size <= 0xff) {
       AMSGPACK_RESIZE(2 + u8size);
       put2(data, '\xd9', (char)u8size);

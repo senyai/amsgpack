@@ -87,6 +87,10 @@ class PackbTest(TestCase):
         value = "A" * 0x20000
         self.assertEqual(unpackb(packb(value)), value)
 
+    def test_main_page_example(self):
+        value = {"compact": True, "schema": 0}
+        self.assertEqual(packb(value), b"\x82\xa7compact\xc3\xa6schema\x00")
+
 
 class UnpackerTest(TestCase):
     def test_feed_nothing(self):
