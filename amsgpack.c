@@ -380,12 +380,12 @@ parse_next:
       case '\x87':
       case '\x88':
       case '\x89':
-      case '\x8A':
-      case '\x8B':
-      case '\x8C':
-      case '\x8D':
-      case '\x8E':
-      case '\x8F': {  // fixmap
+      case '\x8a':
+      case '\x8b':
+      case '\x8c':
+      case '\x8d':
+      case '\x8e':
+      case '\x8f': {  // fixmap
         Py_ssize_t const length = next_byte & 0x0f;
         parsed_object = PyDict_New();
         deque_advance_first_bytes(&self->deque, 1);
@@ -406,12 +406,12 @@ parse_next:
       case '\x97':
       case '\x98':
       case '\x99':
-      case '\x9A':
-      case '\x9B':
-      case '\x9C':
-      case '\x9D':
-      case '\x9E':
-      case '\x9F': {  // fixarray
+      case '\x9a':
+      case '\x9b':
+      case '\x9c':
+      case '\x9d':
+      case '\x9e':
+      case '\x9f': {  // fixarray
         Py_ssize_t const length = next_byte & 0x0f;
         parsed_object = PyList_New(length);
         deque_advance_first_bytes(&self->deque, 1);
@@ -426,7 +426,7 @@ parse_next:
         goto parse_next;
       }
 
-      case '\xA0': {
+      case '\xa0': {
         parsed_object = PyUnicode_FromStringAndSize(NULL, 0);
         if (parsed_object == NULL) {
           return NULL;
@@ -434,37 +434,37 @@ parse_next:
         deque_advance_first_bytes(&self->deque, 1);
         break;
       }
-      case '\xA1':
-      case '\xA2':
-      case '\xA3':
-      case '\xA4':
-      case '\xA5':
-      case '\xA6':
-      case '\xA7':
-      case '\xA8':
-      case '\xA9':
-      case '\xAA':
-      case '\xAB':
-      case '\xAC':
-      case '\xAD':
-      case '\xAE':
-      case '\xAF':
-      case '\xB0':
-      case '\xB1':
-      case '\xB2':
-      case '\xB3':
-      case '\xB4':
-      case '\xB5':
-      case '\xB6':
-      case '\xB7':
-      case '\xB8':
-      case '\xB9':
-      case '\xBA':
-      case '\xBB':
-      case '\xBC':
-      case '\xBD':
-      case '\xBE':
-      case '\xBF': {  // fixstr
+      case '\xa1':
+      case '\xa2':
+      case '\xa3':
+      case '\xa4':
+      case '\xa5':
+      case '\xa6':
+      case '\xa7':
+      case '\xa8':
+      case '\xa9':
+      case '\xaa':
+      case '\xab':
+      case '\xac':
+      case '\xad':
+      case '\xae':
+      case '\xaf':
+      case '\xb0':
+      case '\xb1':
+      case '\xb2':
+      case '\xb3':
+      case '\xb4':
+      case '\xb5':
+      case '\xb6':
+      case '\xb7':
+      case '\xb8':
+      case '\xb9':
+      case '\xba':
+      case '\xbb':
+      case '\xbc':
+      case '\xbd':
+      case '\xbe':
+      case '\xbf': {  // fixstr
         Py_ssize_t const length = next_byte & 0x1f;
         if (deque_has_n_next_byte(&self->deque, length + 1)) {
           deque_advance_first_bytes(&self->deque, 1);
