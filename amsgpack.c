@@ -463,6 +463,38 @@ parse_next:
                         "amsgpack: 0xc1 byte must not be used");
         return NULL;
       }
+      case '\xc4':  // bin 8
+      case '\xc5':  // bin 16
+      case '\xc6':  // bin 32
+      {
+        unsigned char const size_size = 1 << (next_byte - '\xc4');
+        if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
+          Py_ssize_t length = deque_peek_size(&self->deque, size_size);
+          if (deque_has_n_next_byte(&self->deque, length + 2)) {
+            deque_advance_first_bytes(&self->deque, 1 + size_size);
+            if (length == 0) {
+              parsed_object = PyBytes_FromStringAndSize(NULL, length);
+            } else {
+              char const* data = 0;
+              char* allocated = deque_read_bytes(&data, &self->deque, length);
+              if (data == NULL) {
+                return NULL;
+              }
+              parsed_object = PyBytes_FromStringAndSize(data, length);
+              if (allocated) {
+                PyMem_Free(allocated);
+              } else {
+                deque_advance_first_bytes(&self->deque, length);
+              }
+            }
+            if (parsed_object == NULL) {
+              return NULL;
+            }
+            break;
+          }
+        }
+        return NULL;
+      }
       case '\xcb': {  // double
         if (deque_has_n_next_byte(&self->deque, 9)) {
           deque_advance_first_bytes(&self->deque, 1);

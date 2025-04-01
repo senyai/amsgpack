@@ -188,6 +188,27 @@ class UnpackerTest(TestCase):
             str(context.exception), "amsgpack: 0xc1 byte must not be used"
         )
 
+    def test_bin8(self):
+        u = Unpacker()
+        for i in range(2):
+            u.feed(bytes([0xC4, i] + [0x41] * i))
+        ref = tuple([b"A" * i for i in range(2)])
+        self.safeSequenceEqual(u, ref)
+
+    def test_bin16(self):
+        u = Unpacker()
+        for i in range(256, 258):
+            u.feed(bytes([0xC5, 1, i - 256] + [0x41] * i))
+        ref = tuple([b"A" * i for i in range(256, 258)])
+        self.safeSequenceEqual(u, ref)
+
+    def test_bin32(self):
+        u = Unpacker()
+        for i in range(65536, 65538):
+            u.feed(bytes([0xC6, 0, 1, 0, i - 65536] + [0x41] * i))
+        ref = tuple([b"A" * i for i in range(65536, 65538)])
+        self.safeSequenceEqual(u, ref)
+
     def safeSequenceEqual(
         self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:
