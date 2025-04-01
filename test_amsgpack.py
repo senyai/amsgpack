@@ -135,38 +135,36 @@ class UnpackerTest(TestCase):
         u = Unpacker()
         for byte in b"\xcb@\t!\xfbTD-\x11":
             u.feed(bytes((byte,)))
-            if byte == 0xcb:
+            if byte == 0xCB:
                 with self.assertRaises(StopIteration):
                     next(u)
         self.safeSequenceEqual(u, (3.14159265358979,))
 
     def test_feed_double_2_bytes_sequence(self):
         u = Unpacker()
-        pi_bytes =  b"\xcb@\t!\xfbTD-\x11"
+        pi_bytes = b"\xcb@\t!\xfbTD-\x11"
         for idx in range(0, len(pi_bytes), 2):
-            u.feed(bytes(
-                (*pi_bytes[idx: idx+2],)
-            ))
+            u.feed(bytes((*pi_bytes[idx : idx + 2],)))
         self.safeSequenceEqual(u, (3.14159265358979,))
 
     def test_list_len_0(self):
         u = Unpacker()
-        u.feed(b'\x90')
+        u.feed(b"\x90")
         self.safeSequenceEqual(u, ([],))
 
     def test_list_len_1(self):
         u = Unpacker()
-        u.feed(b'\x91\xc0')
+        u.feed(b"\x91\xc0")
         self.safeSequenceEqual(u, ([None],))
 
     def test_list_len_2(self):
         u = Unpacker()
-        u.feed(b'\x92\xc0\xc0')
+        u.feed(b"\x92\xc0\xc0")
         self.safeSequenceEqual(u, ([None, None],))
 
     def test_list_inside_list(self):
         u = Unpacker()
-        u.feed(b'\x92\x90\x90')
+        u.feed(b"\x92\x90\x90")
         self.safeSequenceEqual(u, ([[], []],))
 
     def safeSequenceEqual(
