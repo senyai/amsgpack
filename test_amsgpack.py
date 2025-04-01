@@ -145,6 +145,26 @@ class UnpackerTest(TestCase):
             ))
         self.safeSequenceEqual(u, (3.14159265358979,))
 
+    def test_list_len_0(self):
+        u = Unpacker()
+        u.feed(b'\x90')
+        self.safeSequenceEqual(u, ([],))
+
+    def test_list_len_1(self):
+        u = Unpacker()
+        u.feed(b'\x91\xc0')
+        self.safeSequenceEqual(u, ([None],))
+
+    def test_list_len_2(self):
+        u = Unpacker()
+        u.feed(b'\x92\xc0\xc0')
+        self.safeSequenceEqual(u, ([None, None],))
+
+    def test_list_inside_list(self):
+        u = Unpacker()
+        u.feed(b'\x92\x90\x90')
+        self.safeSequenceEqual(u, ([[], []],))
+
     def safeSequenceEqual(
         self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:

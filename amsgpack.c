@@ -259,6 +259,8 @@ static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
                                              .m_size = -1,
                                              .m_methods = AMsgPackMethods};
 
+static PyObject* msgpack_byte_object[256];
+
 typedef struct {
   PyObject* iterable;
   Py_ssize_t size;
@@ -269,7 +271,6 @@ typedef struct {
   Py_ssize_t await_bytes;  // number of bytes we are currently awaiting
   Py_ssize_t stack_length;
   Stack stack[32];
-  PyObject** actions;  // just a reference
 } Parser;
 
 typedef struct {
@@ -303,21 +304,12 @@ PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   Unpacker* self = (Unpacker*)type->tp_alloc(type, 0);
 
   if (self != NULL) {
-    PyObject* actions = PyObject_GetAttrString((PyObject*)type, "_actions");
-    if (actions == NULL) {
-      goto error;
-    }
-
     // init deque
     memset(&self->deque, 0, sizeof(Deque));
     // init parser
     memset(&self->parser, 0, sizeof(Parser));
-    self->parser.actions = &PyTuple_GET_ITEM(actions, 0);
   }
   return (PyObject*)self;
-error:
-  Py_DECREF(self);
-  return NULL;
 }
 
 static PyObject* Unpacker_iter(PyObject* self) {
@@ -327,21 +319,18 @@ static PyObject* Unpacker_iter(PyObject* self) {
 
 static PyObject* Unpacker_iternext(PyObject* arg0) {
   Unpacker* self = (Unpacker*)arg0;
-  // repeat:
+parse_next:
   if (!deque_has_next_byte(&self->deque)) {
     return NULL;
   }
-  if (self->parser.stack_length) {
-    //...
-  }
   char next_byte = deque_peek_byte(&self->deque);
-  PyObject* action = self->parser.actions[(unsigned char)next_byte];
-  if (PyBytes_CheckExact(action)) {
+  PyObject* parsed_object = msgpack_byte_object[(unsigned char)next_byte];
+  if (parsed_object == NULL) {
     switch (next_byte) {
       case '\xcb': {  // double
         if (deque_has_n_next_byte(&self->deque, 8)) {
           deque_advance_one_byte(&self->deque);
-          char* data = 0;
+          char const* data = 0;
           char* allocated = deque_read_bytes(&data, &self->deque, 8);
           if (data == NULL) {
             return NULL;
@@ -359,116 +348,103 @@ static PyObject* Unpacker_iternext(PyObject* arg0) {
           if (allocated) {
             PyMem_Free(allocated);
           }
-          return PyFloat_FromDouble(value);
+          parsed_object = PyFloat_FromDouble(value);
+          break;
         }
         return NULL;
       }
+      case '\x90':
+      case '\x91':
+      case '\x92':
+      case '\x93':
+      case '\x94':
+      case '\x95':
+      case '\x96':
+      case '\x97':
+      case '\x98':
+      case '\x99':
+      case '\x9A':
+      case '\x9B':
+      case '\x9C':
+      case '\x9D':
+      case '\x9E':
+      case '\x9F': {  // fixarray
+        Py_ssize_t const length = next_byte & 0x0f;
+        parsed_object = PyList_New(length);
+        deque_advance_one_byte(&self->deque);
+        if (length == 0) {
+          break;
+        }
+        Stack const item = {
+            .iterable = parsed_object, .size = length, .pos = 0};
+        self->parser.stack[self->parser.stack_length++] = item;
+        goto parse_next;
+      }
+      default: {
+        // temporary not implemented error
+        PyObject* errorMessage = PyUnicode_FromFormat(
+            "NOT IMPLEMENTED BYTE: %d", (unsigned char)next_byte);
+        PyErr_SetObject(PyExc_TypeError, errorMessage);
+        Py_XDECREF(errorMessage);
+        return NULL;
+      }
     }
-    PyObject* errorMessage =
-        PyUnicode_FromFormat("IS BYTE: %d", (unsigned char)next_byte);
-    PyErr_SetObject(PyExc_TypeError, errorMessage);
-    Py_XDECREF(errorMessage);
-    return NULL;
+  } else {
+    deque_advance_one_byte(&self->deque);
+    Py_INCREF(parsed_object);
   }
-  deque_advance_one_byte(&self->deque);
-  Py_INCREF(action);
-  return action;
+  if (self->parser.stack_length > 0) {
+    Stack* item = &self->parser.stack[self->parser.stack_length - 1];
+    if (item->pos < item->size) {
+      PyList_SET_ITEM(item->iterable, item->pos++, parsed_object);
+    }
+    if (item->pos == item->size) {
+      parsed_object = item->iterable;
+      memset(item, 0, sizeof(Stack));
+      self->parser.stack_length -= 1;
+    } else {
+      goto parse_next;
+    }
+  }
+  return parsed_object;
 }
 
-PyObject* create_unpacker_actions() {
-  // todo: add error checks
-  PyObject* actions = PyTuple_New(256);
-  if (actions == NULL) {
-    return NULL;
-  }
+// returns: -1 - failure
+//           0 - success
+int init_msgpack_byte_object() {
   int i = 0;
   for (; i != 128; ++i) {
     PyObject* number = PyLong_FromLong(i);
     if (number == NULL) {
-      return NULL;
+      return -1;
     }
-    PyTuple_SET_ITEM(actions, i, number);
+    msgpack_byte_object[i] = number;
   }
-  PyObject* fixmap = PyBytes_FromString("m");
-  for (; i != 128 + 16; ++i) {
-    PyTuple_SET_ITEM(actions, i, fixmap);
-  }
-  PyObject* fixarray = PyBytes_FromString("F");
-  for (; i != 128 + 16 + 16; ++i) {
-    PyTuple_SET_ITEM(actions, i, fixarray);
-  }
-
-  PyObject* fixstr = PyBytes_FromString("S");
   for (; i != 128 + 16 + 16 + 32; ++i) {
-    PyTuple_SET_ITEM(actions, i, fixstr);
+    msgpack_byte_object[i] = NULL;  // it must already be null
   }
-  PyTuple_SET_ITEM(actions, i++, Py_None);
+  msgpack_byte_object[i++] = Py_None;
   Py_INCREF(Py_None);
 
-  PyObject* not_implemented = PyBytes_FromString("!");
-  PyTuple_SET_ITEM(actions, i++, not_implemented);
+  msgpack_byte_object[i++] = NULL;
 
-  PyTuple_SET_ITEM(actions, i++, Py_False);  // False
+  msgpack_byte_object[i++] = Py_False;  // False
   Py_INCREF(Py_False);
-  PyTuple_SET_ITEM(actions, i++, Py_True);  // True
+  msgpack_byte_object[i++] = Py_True;  // True
   Py_INCREF(Py_True);
 
-  PyObject* bin = PyBytes_FromString("b");
-  for (; i != 0xc7; ++i) {  // bin 8, 16, 32
-    PyTuple_SET_ITEM(actions, i, bin);
+  for (; i != 0xe0; ++i) {
+    msgpack_byte_object[i] = NULL;  // it must already be null
   }
-  PyObject* ext = PyBytes_FromString("e");
-  for (; i != 0xc7; ++i) {  // ext 8, 16, 32
-    PyTuple_SET_ITEM(actions, i, ext);
-  }
-
-  PyObject* float_ = PyBytes_FromString("f");
-  PyTuple_SET_ITEM(actions, i++, float_);
-  PyObject* double_ = PyBytes_FromString("d");
-  PyTuple_SET_ITEM(actions, i++, double_);
-  PyObject* uint8_ = PyBytes_FromString("B");
-  PyTuple_SET_ITEM(actions, i++, uint8_);
-  PyObject* uint16_ = PyBytes_FromString("H");
-  PyTuple_SET_ITEM(actions, i++, uint16_);
-  PyObject* uint32_ = PyBytes_FromString("I");
-  PyTuple_SET_ITEM(actions, i++, uint32_);
-  PyObject* uint64_ = PyBytes_FromString("Q");
-  PyTuple_SET_ITEM(actions, i++, uint64_);
-  PyObject* int8_ = PyBytes_FromString("b");
-  PyTuple_SET_ITEM(actions, i++, int8_);
-  PyObject* int16_ = PyBytes_FromString("h");
-  PyTuple_SET_ITEM(actions, i++, int16_);
-  PyObject* int32_ = PyBytes_FromString("i");
-  PyTuple_SET_ITEM(actions, i++, int32_);
-  PyObject* int64_ = PyBytes_FromString("q");
-  PyTuple_SET_ITEM(actions, i++, int64_);
-  for (; i != 0xd9; ++i) {  // fixext 1, 2, 4, 8, 16
-    PyTuple_SET_ITEM(actions, i, not_implemented);
-  }
-
-  PyObject* str8_ = PyBytes_FromString("u");
-  PyTuple_SET_ITEM(actions, i++, str8_);
-  PyObject* str16 = PyBytes_FromString("U");
-  PyTuple_SET_ITEM(actions, i++, str16);
-  PyObject* str32 = PyBytes_FromString("y");
-  PyTuple_SET_ITEM(actions, i++, str32);
-  PyObject* arr16 = PyBytes_FromString("a");
-  PyTuple_SET_ITEM(actions, i++, arr16);
-  PyObject* arr32 = PyBytes_FromString("A");
-  PyTuple_SET_ITEM(actions, i++, arr32);
-  PyObject* map16 = PyBytes_FromString("m");
-  PyTuple_SET_ITEM(actions, i++, map16);
-  PyObject* map32 = PyBytes_FromString("m");
-  PyTuple_SET_ITEM(actions, i++, map32);
 
   for (; i != 256; ++i) {
     PyObject* number = PyLong_FromLong((char)i);
     if (number == NULL) {
-      return NULL;
+      return -1;
     }
-    PyTuple_SET_ITEM(actions, i, number);
+    msgpack_byte_object[i] = number;
   }
-  return actions;
+  return 0;
 }
 
 static PyTypeObject Unpacker_Type = {
@@ -484,7 +460,6 @@ static PyTypeObject Unpacker_Type = {
 };
 
 PyMODINIT_FUNC PyInit_amsgpack(void) {
-  PyObject* actions = NULL;
   PyObject* module = PyModule_Create(&amsgpack_module);
   if (module == NULL) {
     return NULL;
@@ -495,12 +470,7 @@ PyMODINIT_FUNC PyInit_amsgpack(void) {
   if (PyType_Ready(&Unpacker_Type) < 0) {
     goto error;
   }
-  actions = create_unpacker_actions();
-  if (!actions) {
-    goto error;
-  }
-  if (PyDict_SetItemString(Unpacker_Type.tp_dict, "_actions", actions) < 0) {
-    Py_DECREF(actions);
+  if (init_msgpack_byte_object() != 0) {
     goto error;
   }
   if (PyModule_AddType(module, &Unpacker_Type) < 0) {
