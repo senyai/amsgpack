@@ -1,6 +1,7 @@
 #include <Python.h>
 
 #include "deque.h"
+#include "ext.h"
 
 #define VERSION "0.0.1"
 
@@ -639,10 +640,16 @@ PyMODINIT_FUNC PyInit_amsgpack(void) {
   if (PyModule_AddStringConstant(module, "__version__", VERSION) != 0) {
     goto error;
   }
-  if (PyType_Ready(&Unpacker_Type) < 0) {
+  if (init_msgpack_byte_object() != 0) {
     goto error;
   }
-  if (init_msgpack_byte_object() != 0) {
+  if (PyType_Ready(&Ext_Type) < 0) {
+    goto error;
+  }
+  if (PyModule_AddType(module, &Ext_Type) < 0) {
+    goto error;
+  }
+  if (PyType_Ready(&Unpacker_Type) < 0) {
     goto error;
   }
   if (PyModule_AddType(module, &Unpacker_Type) < 0) {
