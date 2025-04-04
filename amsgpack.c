@@ -152,7 +152,7 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     Py_ssize_t const list_size = PyList_Size(obj);
     if (list_size <= 15) {
       AMSGPACK_RESIZE(1);
-      data[0] = 0x90 + list_size;
+      data[0] = '\x90' + (char)list_size;
     } else if (list_size <= 0xffff) {
       AMSGPACK_RESIZE(3);
       put3(data, '\xdc', (unsigned short)list_size);
@@ -222,16 +222,57 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
       return -1;
     }
     memcpy(data + pos, buffer, bytes_size);
+  } else if (Py_IS_TYPE(obj, &Ext_Type)) {
+    Ext* ext = (Ext*)obj;
+    Py_ssize_t const data_length = PyBytes_GET_SIZE(ext->data);
+    char const* data_bytes = PyBytes_AS_STRING(ext->data);
+    char header = '\0';
+    switch (data_length) {
+      case 1:
+        header = '\xd4';
+        goto non_default;
+      case 2:
+        header = '\xd5';
+        goto non_default;
+      case 4:
+        header = '\xd6';
+        goto non_default;
+      case 8:
+        header = '\xd7';
+        goto non_default;
+      case 16:
+        header = '\xd8';
+        goto non_default;
+      default:
+        if (data_length <= 0xff) {
+          AMSGPACK_RESIZE(2 + 1 + data_length);
+          put2(data, '\xc7', data_length);
+          data[2] = ext->code;
+          memcpy(data + 3, data_bytes, data_length);
+        } else if (data_length <= 0xffff) {
+          AMSGPACK_RESIZE(3 + 1 + data_length);
+          put3(data, '\xc8', data_length);
+          data[3] = ext->code;
+          memcpy(data + 4, data_bytes, data_length);
+        } else if (data_length <= 0xffffffff) {
+          AMSGPACK_RESIZE(5 + 1 + data_length);
+          put5(data, '\xc9', data_length);
+          data[5] = ext->code;
+          memcpy(data + 6, data_bytes, data_length);
+        } else {
+          PyErr_SetString(PyExc_TypeError, "Ext() length is too large");
+          return -1;
+        }
+        break;
+      non_default:
+        AMSGPACK_RESIZE(2 + data_length);
+        put2(data, header, ext->code);
+        memcpy(data + 2, data_bytes, data_length);
+    }
   } else {
     PyTypeObject const* cls = Py_TYPE(obj);
-    PyObject* typeStr = PyObject_Str((PyObject*)cls);
-
-    const char* typeCString = PyUnicode_AsUTF8(typeStr);
-
-    PyObject* errorMessage =
-        PyUnicode_FromFormat("unsupported type: %s", typeCString);
+    PyObject* errorMessage = PyUnicode_FromFormat("unsupported type: %S", cls);
     PyErr_SetObject(PyExc_TypeError, errorMessage);
-    Py_XDECREF(typeStr);
     Py_XDECREF(errorMessage);
     return -1;
   }
