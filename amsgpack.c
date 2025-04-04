@@ -238,7 +238,7 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
   return 0;
 }
 
-static PyObject* packb(PyObject* module, PyObject* obj) {
+static PyObject* packb(PyObject*, PyObject* obj) {
   PyObject* byte_array = PyByteArray_FromStringAndSize(NULL, 0);
   if (byte_array == NULL) {
     return NULL;
@@ -310,6 +310,16 @@ static PyMethodDef Unpacker_Methods[] = {
 };
 
 PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
+  // Check that no arguments were provided
+  if (!PyArg_ParseTuple(args, ":Ext")) {
+    return NULL;
+  }
+
+  if (kwds != NULL && PyDict_Size(kwds) > 0) {
+    PyErr_SetString(PyExc_TypeError, "Ext() takes no keyword arguments");
+    return NULL;
+  }
+
   Unpacker* self = (Unpacker*)type->tp_alloc(type, 0);
 
   if (self != NULL) {

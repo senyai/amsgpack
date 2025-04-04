@@ -93,6 +93,12 @@ class PackbTest(TestCase):
 
 
 class UnpackerTest(TestCase):
+    def test_unpacker_gets_no_argumens(self):
+        with self.assertRaises(TypeError):
+            Unpacker("what", "is", "that")
+        with self.assertRaises(TypeError):
+            Unpacker(what="is that")
+
     def test_feed_nothing(self):
         self.safeSequenceEqual(Unpacker(), ())
 
