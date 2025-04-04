@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from math import pi
 from unittest import TestCase
-from amsgpack import packb, Unpacker
+from amsgpack import packb, Unpacker, Ext
 from msgpack import unpackb
 
 Value = (
@@ -218,3 +218,37 @@ class UnpackerTest(TestCase):
             self.assertEqual(next(it), item, f"{idx=}")
         with self.assertRaises(StopIteration):
             next(it)
+
+
+class ExtTest(TestCase):
+    def test_args_init(self):
+        self.assertEqual(repr(Ext(127, b"123")), "Ext(code=127, data=b'123')")
+
+    def test_kwargs_init(self):
+        self.assertEqual(
+            repr(Ext(code=127, data=b"123")), "Ext(code=127, data=b'123')"
+        )
+
+    def test_hash_equal_when_code_and_data_equal(self):
+        a = Ext(code=42, data=b"456")
+        b = Ext(code=42, data=b"456")
+        self.assertEqual(a, b)
+        self.assertEqual(hash(a), hash(b))
+
+    def test_hash_differ_when_code_is_different(self):
+        a = Ext(code=127, data=b"123")
+        b = Ext(code=128, data=b"123")
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(hash(a), hash(b))
+
+    def test_can_access_attributes(self):
+        a = Ext(code=127, data=b"123")
+        self.assertEqual(a.code, 127)
+        self.assertEqual(a.data, b"123")
+
+    def test_attributes_are_readonly(self):
+        a = Ext(code=127, data=b"123")
+        with self.assertRaises(AttributeError):
+            a.code = 3
+        with self.assertRaises(AttributeError):
+            a.data = b"x"
