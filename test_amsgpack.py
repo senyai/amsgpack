@@ -91,6 +91,38 @@ class PackbTest(TestCase):
         value = {"compact": True, "schema": 0}
         self.assertEqual(packb(value), b"\x82\xa7compact\xc3\xa6schema\x00")
 
+    def test_ext_size_1(self):
+        value = Ext(0x43, b"1")
+        self.assertEqual(packb(value), b"\xd4C1")
+
+    def test_ext_size_2(self):
+        value = Ext(0x43, b"11")
+        self.assertEqual(packb(value), b"\xd5C11")
+
+    def test_ext_size_3(self):
+        value = Ext(0x42, b"123")
+        self.assertEqual(packb(value), b"\xc7\x03B123")
+
+    def test_ext_size_4(self):
+        value = Ext(0x43, b"1111")
+        self.assertEqual(packb(value), b"\xd6C1111")
+
+    def test_ext_size_8(self):
+        value = Ext(0x43, b"1" * 8)
+        self.assertEqual(packb(value), b"\xd7C11111111")
+
+    def test_ext_size_16(self):
+        value = Ext(0x43, b"1" * 16)
+        self.assertEqual(packb(value), b"\xd8C1111111111111111")
+
+    def test_ext_size_1000(self):
+        value = Ext(0x43, b"1" * 1000)
+        self.assertEqual(packb(value), b"\xc8\x03\xe8C" + b"1" * 1000)
+
+    def test_ext_size_67000(self):
+        value = Ext(0x43, b"1" * 67000)
+        self.assertEqual(packb(value), b"\xc9\x00\x01\x05\xb8C" + b"1" * 67000)
+
 
 class UnpackerTest(TestCase):
     def test_unpacker_gets_no_argumens(self):
