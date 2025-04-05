@@ -2,7 +2,13 @@ from collections.abc import Sequence
 from math import pi
 from unittest import TestCase
 from amsgpack import packb, Unpacker, Ext
-from msgpack import unpackb
+
+
+def unpackb(data: bytes):
+    u = Unpacker()
+    u.feed(bytes(data))
+    return next(u)
+
 
 Value = (
     dict[str, "Value"]
