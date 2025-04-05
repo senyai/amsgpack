@@ -36,6 +36,12 @@ static inline void deque_pop_first(Deque *deque, Py_ssize_t size_first) {
   deque->size -= size_first;
 }
 
+static inline void deque_clean(Deque *deque) {
+  while (deque->deque_first) {
+    deque_pop_first(deque, 0);
+  }
+}
+
 static inline BytesNode *deque_append(Deque *deque, PyObject *bytes) {
   BytesNode *new_node = (BytesNode *)PyMem_Malloc(sizeof(BytesNode));
   if (new_node == NULL) {

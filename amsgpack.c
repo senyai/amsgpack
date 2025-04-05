@@ -374,6 +374,18 @@ PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   return (PyObject*)self;
 }
 
+static void Unpacker_dealloc(Unpacker* self) {
+  deque_clean(&self->deque);
+  while (self->parser.stack_length) {
+    Py_ssize_t idx = self->parser.stack_length - 1;
+    Py_DECREF(self->parser.stack[idx].iterable);
+    Py_XDECREF(self->parser.stack[idx].key);
+    memset(&self->parser.stack[idx], 0, sizeof(Stack));
+    self->parser.stack_length = idx;
+  }
+  Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
 static PyObject* Unpacker_iter(PyObject* self) {
   Py_INCREF(self);
   return self;
