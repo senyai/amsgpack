@@ -4,7 +4,7 @@
 #include "deque.h"
 #include "ext.h"
 
-#define VERSION "0.0.1"
+#define VERSION "0.0.2"
 
 static inline void put2(char* dst, char header, char value) {
   dst[0] = header;
@@ -1085,6 +1085,7 @@ parse_next:
         break;
       case DICT_KEY:
         item->action = DICT_VALUE;
+        assert(item->key == NULL);
         item->key = parsed_object;
         goto parse_next;
       case DICT_VALUE: {
@@ -1092,6 +1093,8 @@ parse_next:
           if (PyDict_SetItem(item->iterable, item->key, parsed_object) != 0) {
             return NULL;
           }
+          Py_DECREF(item->key);
+          item->key = NULL;
           item->pos += 1;
         }
         if (item->pos == item->size) {
@@ -1100,7 +1103,6 @@ parse_next:
           self->parser.stack_length -= 1;
         } else {
           item->action = DICT_KEY;
-          Py_DECREF(item->key);
           item->key = NULL;
           goto parse_next;
         }
@@ -1156,7 +1158,7 @@ static PyTypeObject Unpacker_Type = {
     .tp_basicsize = sizeof(Unpacker),
     .tp_doc = PyDoc_STR("Unpack bytes to python objects"),
     .tp_new = Unpacker_new,
-    // .tp_dealloc = ...,
+    .tp_dealloc = (destructor)Unpacker_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_methods = Unpacker_Methods,
     .tp_iter = Unpacker_iter,
