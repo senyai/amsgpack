@@ -5,7 +5,14 @@ from amsgpack import packb, Unpacker, Ext
 from msgpack import unpackb
 
 Value = (
-    dict[str, "Value"] | Sequence["Value"] | str | int | float | bool | None
+    dict[str, "Value"]
+    | Sequence["Value"]
+    | str
+    | int
+    | float
+    | bool
+    | None
+    | Ext
 )
 
 
@@ -247,6 +254,35 @@ class UnpackerTest(TestCase):
         ref = tuple([b"A" * i for i in range(65536, 65538)])
         self.safeSequenceEqual(u, ref)
 
+    def test_uint_8(self):
+        u = Unpacker()
+        for char in b"\xcc\x00\xcc\x7f\xcc\x80\xcc\xff":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0, 127, 128, 255))
+
+    def test_uint_16(self):
+        u = Unpacker()
+        for char in b"\xcd\x00\x00\xcd\x00\xff\xcd\x01\x00\xcd\xff\xff":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF))
+
+    def test_uint_32(self):
+        u = Unpacker()
+        for (
+            char
+        ) in b"\xce\x00\x00\x00\x00\xce\x00\x00\x00\xff\xce\x00\x00\x01\x00\xce\x00\x00\xff\xff\xce\xff\xff\xff\xff":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF, 0xFFFFFFFF))
+
+    def test_ext_4(self):
+        ext = Ext(1, b"1234")
+        ref_bytes = packb(ext)
+        self.assertEqual(ref_bytes, b"\xd6\x011234")
+        u = Unpacker()
+        for char in ref_bytes:
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (ext,))
+
     def safeSequenceEqual(
         self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:
@@ -265,6 +301,11 @@ class ExtTest(TestCase):
     def test_kwargs_init(self):
         self.assertEqual(
             repr(Ext(code=127, data=b"123")), "Ext(code=127, data=b'123')"
+        )
+
+    def test_code_128_is_impossible(self):
+        self.assertEqual(
+            repr(Ext(code=128, data=b"1")), "Ext(code=-128, data=b'1')"
         )
 
     def test_hash_equal_when_code_and_data_equal(self):

@@ -103,31 +103,14 @@ static char *deque_read_bytes(char const **bytes, Deque *deque,
     left_to_copy -= copy_size;
     if (copy_size == iter_size) {
       deque_pop_first(deque, iter_size);
+    } else {
+      deque->pos = copy_size;
     }
     char_idx += iter_size;
   }
-  // if (left_to_copy == copy_size) {
-  //   deque_pop_first(deque, size_first);
-  // } else {
-  deque->pos = copy_size;
-  // deque->size -= requested_size;
-  //  }
   *bytes = new_mem;
   return new_mem;
 }
-
-/*static inline char deque_read_byte(Deque *deque) {
-  assert(deque->deque_first);
-  assert(deque->deque_last);
-  assert(deque->pos < deque->size);
-  PyObject *obj = deque->deque_first->bytes;
-  char byte = PyBytes_AS_STRING(obj)[deque->pos++];
-  Py_ssize_t size_first = PyBytes_GET_SIZE(obj);
-  if (size_first == deque->pos) {
-    deque_pop_first(deque, size_first);
-  }
-  return byte;
-}*/
 
 static inline char deque_peek_byte(Deque *deque) {
   assert(deque->deque_first);
@@ -165,7 +148,7 @@ static inline Py_ssize_t deque_peek_size(Deque *deque,
   assert(deque->pos + requested_size <= deque->size);
   assert(requested_size > 0);
   assert(deque->deque_first);
-  Py_ssize_t const pos = deque->pos + 1;
+  Py_ssize_t const pos = deque->pos + 1;  // read the size after current byte
   PyObject *const obj = deque->deque_first->bytes;
   Py_ssize_t size_first = PyBytes_GET_SIZE(obj);
   char const *start = PyBytes_AS_STRING(obj) + pos;
