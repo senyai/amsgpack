@@ -136,6 +136,13 @@ class PackbTest(TestCase):
         value = Ext(0x43, b"1" * 67000)
         self.assertEqual(packb(value), b"\xc9\x00\x01\x05\xb8C" + b"1" * 67000)
 
+    def test_unsupported_type_raises_exception(self):
+        with self.assertRaises(TypeError) as context:
+            packb(1j)
+        self.assertEqual(
+            str(context.exception), "Unserializable 'complex' object"
+        )
+
 
 class UnpackerTest(TestCase):
     def test_unpacker_gets_no_argumens(self):

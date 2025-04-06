@@ -271,8 +271,8 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
         memcpy(data + 2, data_bytes, data_length);
     }
   } else {
-    PyTypeObject const* cls = Py_TYPE(obj);
-    PyObject* errorMessage = PyUnicode_FromFormat("unsupported type: %S", cls);
+    PyObject* errorMessage = PyUnicode_FromFormat("Unserializable '%s' object",
+                                                  Py_TYPE(obj)->tp_name);
     PyErr_SetObject(PyExc_TypeError, errorMessage);
     Py_XDECREF(errorMessage);
     return -1;
