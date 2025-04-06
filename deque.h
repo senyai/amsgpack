@@ -40,6 +40,7 @@ static inline void deque_clean(Deque *deque) {
   while (deque->deque_first) {
     deque_pop_first(deque, 0);
   }
+  deque->size = 0;
 }
 
 static inline BytesNode *deque_append(Deque *deque, PyObject *bytes) {
