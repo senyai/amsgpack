@@ -130,6 +130,10 @@ class PackbTest(TestCase):
         value = Ext(0x43, b"1" * 67000)
         self.assertEqual(packb(value), b"\xc9\x00\x01\x05\xb8C" + b"1" * 67000)
 
+    def test_can_pack_tuple(self):
+        self.assertEqual(packb(()), b"\x90")
+        self.assertEqual(packb((1, 2, 3)), b"\x93\x01\x02\x03")
+
     def test_unsupported_type_raises_exception(self):
         with self.assertRaises(TypeError) as context:
             packb(1j)

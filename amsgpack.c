@@ -5,6 +5,8 @@
 #include "ext.h"
 
 #define VERSION "0.0.2"
+#define A_STACK_SIZE 32
+#define MiB128 134217728
 
 static inline void put2(char* dst, char header, char value) {
   dst[0] = header;
@@ -49,8 +51,6 @@ static inline void put9_dbl(char* dst, char header, double value) {
   dst[8] = ((char*)&value)[0];
 }
 
-#define MiB128 134217728
-
 #define AMSGPACK_RESIZE(n)                                \
   do {                                                    \
     if (PyByteArray_Resize(byte_array, pos + (n)) != 0) { \
@@ -64,7 +64,8 @@ static inline void put9_dbl(char* dst, char header, double value) {
 static int packb_(PyObject* obj, PyObject* byte_array, int level) {
   Py_ssize_t pos = PyByteArray_GET_SIZE(byte_array);
   char* data;
-  if (level > 16) {
+  unsigned int is_list = 1;
+  if (level >= A_STACK_SIZE) {
     PyErr_SetString(PyExc_ValueError, "Object is too deep");
     return -1;
   }
@@ -150,9 +151,11 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     PyErr_SetString(PyExc_ValueError,
                     "String length is out of MessagePack range");
     return -1;
-  } else if (PyList_CheckExact(obj)) {
+  } else if (PyList_CheckExact(obj) ||
+             (PyTuple_CheckExact(obj) && (is_list = 2))) {
     // https://docs.python.org/3.11/c-api/list.html
-    Py_ssize_t const list_size = PyList_Size(obj);
+    Py_ssize_t const list_size =
+        (is_list == 1) ? PyList_GET_SIZE(obj) : PyTuple_GET_SIZE(obj);
     if (list_size <= 15) {
       AMSGPACK_RESIZE(1);
       data[0] = '\x90' + (char)list_size;
@@ -167,10 +170,19 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
                       "List length is out of MessagePack range");
       return -1;
     }
-    for (Py_ssize_t i = 0; i < list_size; i++) {
-      PyObject* item = PyList_GET_ITEM(obj, i);
-      if (packb_(item, byte_array, level + 1) != 0) {
-        return -1;
+    if (is_list == 1)
+      for (Py_ssize_t i = 0; i < list_size; i++) {
+        PyObject* item = PyList_GET_ITEM(obj, i);
+        if (packb_(item, byte_array, level + 1) != 0) {
+          return -1;
+        }
+      }
+    else {
+      for (Py_ssize_t i = 0; i < list_size; i++) {
+        PyObject* item = PyTuple_GET_ITEM(obj, i);
+        if (packb_(item, byte_array, level + 1) != 0) {
+          return -1;
+        }
       }
     }
   } else if (PyDict_CheckExact(obj)) {
@@ -328,7 +340,6 @@ typedef struct {
   PyObject* key;
 } Stack;
 
-#define A_STACK_SIZE 32
 typedef struct {
   Py_ssize_t await_bytes;  // number of bytes we are currently awaiting
   Py_ssize_t stack_length;
