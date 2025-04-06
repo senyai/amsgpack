@@ -4,7 +4,7 @@
 #include "deque.h"
 #include "ext.h"
 
-#define VERSION "0.0.2"
+#define VERSION "0.0.3"
 #define A_STACK_SIZE 32
 #define MiB128 134217728
 
