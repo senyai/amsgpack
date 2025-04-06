@@ -49,6 +49,8 @@ static inline void put9_dbl(char* dst, char header, double value) {
   dst[8] = ((char*)&value)[0];
 }
 
+#define MiB128 134217728
+
 #define AMSGPACK_RESIZE(n)                                \
   do {                                                    \
     if (PyByteArray_Resize(byte_array, pos + (n)) != 0) { \
@@ -280,14 +282,15 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
   return 0;
 }
 
-static PyObject* packb(PyObject*, PyObject* obj) {
+static PyObject* packb(PyObject* _module, PyObject* obj) {
+  (void)_module;
   PyObject* byte_array = PyByteArray_FromStringAndSize(NULL, 0);
   if (byte_array == NULL) {
     return NULL;
   }
 
   if (packb_(obj, byte_array, 0) != 0) {
-    Py_XDECREF(byte_array);
+    Py_DECREF(byte_array);
     return NULL;
   }
   return byte_array;
@@ -319,11 +322,16 @@ typedef struct {
   PyObject* key;
 } Stack;
 
+#define A_STACK_SIZE 32
 typedef struct {
   Py_ssize_t await_bytes;  // number of bytes we are currently awaiting
   Py_ssize_t stack_length;
-  Stack stack[32];
+  Stack stack[A_STACK_SIZE];
 } Parser;
+
+static inline int can_not_append_stack(Parser* parser) {
+  return parser->stack_length >= A_STACK_SIZE;
+}
 
 typedef struct {
   PyObject_HEAD;
@@ -423,6 +431,14 @@ typedef union A_TIMESTAMP_96 {
   char bytes[12];
 } A_TIMESTAMP_96;
 typedef char _check_timestamp_96_size[sizeof(A_TIMESTAMP_96) == 12 ? 1 : -1];
+
+static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
+  PyObject* errorMessage =
+      PyUnicode_FromFormat("%s size %z is too big (>%z)", type, length, limit);
+  PyErr_SetObject(PyExc_ValueError, errorMessage);
+  Py_XDECREF(errorMessage);
+  return NULL;
+}
 
 static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   // timestamp case
@@ -524,8 +540,15 @@ parse_next:
       case '\x8d':
       case '\x8e':
       case '\x8f': {  // fixmap
+        if (can_not_append_stack(&self->parser)) {
+          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+          return NULL;
+        }
         Py_ssize_t const length = next_byte & 0x0f;
         parsed_object = PyDict_New();
+        if (parsed_object == NULL) {
+          return NULL;
+        }
         deque_advance_first_bytes(&self->deque, 1);
         Stack const item = {.action = DICT_KEY,
                             .iterable = parsed_object,
@@ -550,8 +573,15 @@ parse_next:
       case '\x9d':
       case '\x9e':
       case '\x9f': {  // fixarray
+        if (can_not_append_stack(&self->parser)) {
+          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+          return NULL;
+        }
         Py_ssize_t const length = next_byte & 0x0f;
         parsed_object = PyList_New(length);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
         deque_advance_first_bytes(&self->deque, 1);
         if (length == 0) {
           break;
@@ -636,11 +666,14 @@ parse_next:
         unsigned char const size_size = 1 << (next_byte - '\xc4');
         if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
           Py_ssize_t length = deque_peek_size(&self->deque, size_size);
-          if (deque_has_n_next_byte(&self->deque, length + 2)) {
+          if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
             deque_advance_first_bytes(&self->deque, 1 + size_size);
             if (length == 0) {
               parsed_object = PyBytes_FromStringAndSize(NULL, length);
             } else {
+              if (length > MiB128) {
+                return size_error("bytes", length, MiB128);
+              }
               char const* data = 0;
               char* allocated = deque_read_bytes(&data, &self->deque, length);
               if (data == NULL) {
@@ -666,9 +699,14 @@ parse_next:
       case '\xc9':  // ext 32
       {
         unsigned char const size_size = 1 << (next_byte - '\xc7');
-        if (deque_has_n_next_byte(&self->deque, 2 + size_size)) {
-          Py_ssize_t data_length = deque_peek_size(&self->deque, size_size);
-          if (deque_has_n_next_byte(&self->deque, data_length + 3)) {
+        if (deque_has_n_next_byte(&self->deque, 1 + size_size + 1)) {
+          Py_ssize_t const data_length =
+              deque_peek_size(&self->deque, size_size);
+          if (data_length >= MiB128) {
+            return NULL;
+          }
+          if (deque_has_n_next_byte(&self->deque,
+                                    1 + size_size + 1 + data_length)) {
             deque_advance_first_bytes(&self->deque, 1 + size_size);
             char const* data = 0;
             char* allocated =
@@ -680,6 +718,9 @@ parse_next:
             if (code == -1 &&
                 (data_length == 8 || data_length == 4 || data_length == 12)) {
               parsed_object = ext_to_timestamp(data + 1, data_length);
+              if (parsed_object == NULL) {
+                return NULL;  // likely overflow error
+              }
               break;
             }
             Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
@@ -885,6 +926,9 @@ parse_next:
           char const code = data[0];
           if (code == -1 && (data_length == 8 || data_length == 4)) {
             parsed_object = ext_to_timestamp(data + 1, data_length);
+            if (parsed_object == NULL) {
+              return NULL;  // likely overflow error
+            }
             break;
           }
 
@@ -911,11 +955,14 @@ parse_next:
         unsigned char const size_size = 1 << (next_byte - '\xd9');
         if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
           Py_ssize_t length = deque_peek_size(&self->deque, size_size);
-          if (deque_has_n_next_byte(&self->deque, length + 2)) {
+          if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
             deque_advance_first_bytes(&self->deque, 1 + size_size);
             if (length == 0) {
               parsed_object = PyUnicode_FromStringAndSize(NULL, length);
             } else {
+              if (length > MiB128) {
+                return size_error("string", length, MiB128);
+              }
               char const* data = 0;
               char* allocated = deque_read_bytes(&data, &self->deque, length);
               if (data == NULL) {
@@ -939,7 +986,7 @@ parse_next:
       case '\xdc':    // array 16
       case '\xdd': {  // array 32
         Py_ssize_t length;
-        if (next_byte == '\xdc') {
+        if (next_byte == '\xdc') {  // array 16
           if (deque_has_n_next_byte(&self->deque, 3)) {
             deque_advance_first_bytes(&self->deque, 1);
             char const* data = 0;
@@ -960,7 +1007,7 @@ parse_next:
           } else {
             return NULL;
           }
-        } else {
+        } else {  // array 32
           if (deque_has_n_next_byte(&self->deque, 5)) {
             deque_advance_first_bytes(&self->deque, 1);
             char const* data = 0;
@@ -984,7 +1031,17 @@ parse_next:
             return NULL;
           }
         }
+        if (length > 10000000) {
+          return size_error("list", length, 10000000);
+        }
+        if (can_not_append_stack(&self->parser)) {
+          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+          return NULL;
+        }
         parsed_object = PyList_New(length);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
         if (length == 0) {
           break;
         }
@@ -1043,6 +1100,13 @@ parse_next:
             return NULL;
           }
         }
+        if (length > 100000) {
+          return size_error("dict", length, 100000);
+        }
+        if (can_not_append_stack(&self->parser)) {
+          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+          return NULL;
+        }
         parsed_object = PyDict_New();
         if (length == 0) {
           break;
@@ -1055,12 +1119,7 @@ parse_next:
         goto parse_next;
       }
       default: {
-        // temporary not implemented error
-        PyObject* errorMessage = PyUnicode_FromFormat(
-            "NOT IMPLEMENTED BYTE: %d", (unsigned char)next_byte);
-        PyErr_SetObject(PyExc_TypeError, errorMessage);
-        Py_XDECREF(errorMessage);
-        return NULL;
+        assert(0);
       }
     }
   } else {
@@ -1083,8 +1142,9 @@ parse_next:
         }
         break;
       case DICT_KEY:
-        item->action = DICT_VALUE;
         assert(item->key == NULL);
+        assert(parsed_object != NULL);
+        item->action = DICT_VALUE;
         item->key = parsed_object;
         goto parse_next;
       case DICT_VALUE: {
@@ -1093,16 +1153,15 @@ parse_next:
             return NULL;
           }
           Py_DECREF(item->key);
-          item->key = NULL;
+          item->action = DICT_KEY;
           item->pos += 1;
+          item->key = NULL;
         }
         if (item->pos == item->size) {
           parsed_object = item->iterable;
           memset(item, 0, sizeof(Stack));
           self->parser.stack_length -= 1;
         } else {
-          item->action = DICT_KEY;
-          item->key = NULL;
           goto parse_next;
         }
         break;
