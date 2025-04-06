@@ -296,12 +296,18 @@ static PyObject* packb(PyObject* _module, PyObject* obj) {
   return byte_array;
 }
 
+static PyObject* unpackb(PyObject* _module, PyObject* bytes);
+
 PyDoc_STRVAR(amsgpack_packb_doc,
-             "packb($module, objq, /)\n--\n\n"
+             "packb($module, obj, /)\n--\n\n"
              "Serialize ``obj`` to a MessagePack formatted ``bytearray``.");
+PyDoc_STRVAR(amsgpack_unpackb_doc,
+             "unpackb($module, data, /)\n--\n\n"
+             "Deserialize ``data`` (a ``bytes`` object) to a Python object.");
 
 static PyMethodDef AMsgPackMethods[] = {
     {"packb", (PyCFunction)packb, METH_O, amsgpack_packb_doc},
+    {"unpackb", (PyCFunction)unpackb, METH_O, amsgpack_unpackb_doc},
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
@@ -362,7 +368,7 @@ static PyMethodDef Unpacker_Methods[] = {
 
 PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   // Check that no arguments were provided
-  if (!PyArg_ParseTuple(args, ":Ext")) {
+  if (args != NULL && !PyArg_ParseTuple(args, ":Ext")) {
     return NULL;
   }
 
@@ -721,24 +727,23 @@ parse_next:
               if (parsed_object == NULL) {
                 return NULL;  // likely overflow error
               }
-              break;
+            } else {
+              Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
+              if (ext == NULL) {
+                return NULL;  // Allocation failed
+              }
+              ext->code = code;
+              ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
+              if (ext->data == NULL) {
+                return NULL;
+              }
+              parsed_object = (PyObject*)ext;
             }
-            Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
-            if (ext == NULL) {
-              return NULL;  // Allocation failed
-            }
-
-            ext->code = code;
-            ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
             if (allocated) {
               PyMem_Free(allocated);
             } else {
               deque_advance_first_bytes(&self->deque, data_length + 1);
             }
-            if (ext->data == NULL) {
-              return NULL;
-            }
-            parsed_object = (PyObject*)ext;
             break;
           }
         }
@@ -929,21 +934,20 @@ parse_next:
             if (parsed_object == NULL) {
               return NULL;  // likely overflow error
             }
-            break;
+          } else {
+            Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
+            if (ext == NULL) {
+              return NULL;  // Allocation failed
+            }
+            ext->code = code;
+            ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
+            parsed_object = (PyObject*)ext;
           }
-
-          Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
-          if (ext == NULL) {
-            return NULL;  // Allocation failed
-          }
-          ext->code = code;
-          ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
           if (allocated) {
             PyMem_Free(allocated);
           } else {
             deque_advance_first_bytes(&self->deque, data_length + 1);
           }
-          parsed_object = (PyObject*)ext;
           break;
         }
         return NULL;
@@ -1249,6 +1253,41 @@ PyMODINIT_FUNC PyInit_amsgpack(void) {
   return module;
 error:
   Py_DECREF(module);
+  return NULL;
+}
+
+static PyObject* unpackb(PyObject* _module, PyObject* obj) {
+  (void)_module;
+  if (PyBytes_CheckExact(obj) == 0) {
+    obj = PyBytes_FromObject(obj);
+    if (obj == NULL) {
+      PyErr_Format(PyExc_TypeError, "a obj object is required, not '%.100s'",
+                   Py_TYPE(obj)->tp_name);
+      return NULL;
+    }
+  }
+  Unpacker* unpacker = (Unpacker*)Unpacker_new(&Unpacker_Type, NULL, NULL);
+  if (unpacker == NULL) {
+    Py_DECREF(obj);
+    return NULL;
+  }
+  if (deque_append(&unpacker->deque, obj) == NULL) {
+    return NULL;
+  }
+  PyObject* ret = Unpacker_iternext(unpacker);
+  if (ret == NULL) {
+    if (PyErr_Occurred() == NULL) {
+      PyErr_SetString(PyExc_ValueError, "Incomplete Message Pack format");
+    }
+    goto error;
+  }
+  if (unpacker->deque.deque_first != NULL) {
+    PyErr_SetString(PyExc_ValueError, "Extra data");
+    goto error;
+  }
+  return ret;
+error:
+  Py_DECREF(unpacker);
   return NULL;
 }
 
