@@ -142,7 +142,7 @@ static inline char deque_read_byte(Deque *deque) {
 // advance deque, but not more, than the size of the first item
 static inline void deque_advance_first_bytes(Deque *deque, Py_ssize_t size) {
   Py_ssize_t size_first = PyBytes_GET_SIZE(deque->deque_first->bytes);
-  assert(deque->pos += size <= size_first);
+  assert(deque->pos + size <= size_first);
   deque->pos += size;
   if (size_first == deque->pos) {
     deque_pop_first(deque, size_first);
@@ -151,7 +151,7 @@ static inline void deque_advance_first_bytes(Deque *deque, Py_ssize_t size) {
 
 static inline Py_ssize_t deque_peek_size(Deque *deque,
                                          Py_ssize_t requested_size) {
-  assert(size == 1 || size == 2 || size == 4);
+  assert(requested_size == 1 || requested_size == 2 || requested_size == 4);
   assert(deque->pos + requested_size <= deque->size);
   assert(requested_size > 0);
   assert(deque->deque_first);
