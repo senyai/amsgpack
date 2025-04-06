@@ -52,7 +52,6 @@ static PyTypeObject Ext_Type = {
     .tp_new = PyType_GenericNew,
     .tp_init = (initproc)Ext_init,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_base = &PyBytes_Type,
     .tp_repr = (reprfunc)Ext_repr,
     .tp_members = Ext_members,
     .tp_hash = (hashfunc)Ext_hash,
