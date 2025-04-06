@@ -492,8 +492,7 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   return datetime_obj;
 }
 
-static PyObject* Unpacker_iternext(PyObject* arg0) {
-  Unpacker* self = (Unpacker*)arg0;
+static PyObject* Unpacker_iternext(Unpacker* self) {
 parse_next:
   if (!deque_has_next_byte(&self->deque)) {
     return NULL;
@@ -1162,7 +1161,7 @@ static PyTypeObject Unpacker_Type = {
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_methods = Unpacker_Methods,
     .tp_iter = Unpacker_iter,
-    .tp_iternext = Unpacker_iternext,
+    .tp_iternext = (iternextfunc)Unpacker_iternext,
 };
 
 PyMODINIT_FUNC PyInit_amsgpack(void) {
