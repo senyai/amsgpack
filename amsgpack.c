@@ -1193,3 +1193,41 @@ error:
   Py_DECREF(module);
   return NULL;
 }
+
+#ifdef AMSGPACK_FUZZER
+// fuzzer, forgive me
+int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+  Unpacker* unpacker = (Unpacker*)Unpacker_new(&Unpacker_Type, NULL, NULL);
+  assert(unpacker != NULL);
+  {
+    PyObject* bytes = PyBytes_FromStringAndSize((char const*)data, size);
+    assert(bytes != NULL);
+    PyObject* feed_res = unpacker_feed(unpacker, bytes);
+    Py_DECREF(bytes);
+    if (feed_res == NULL) {
+      Py_DECREF(unpacker);
+      return -1;
+    } else {
+      Py_DECREF(feed_res);
+    }
+  }
+  for (;;) {
+    PyObject* unpacked_object = Unpacker_iternext(unpacker);
+    if (unpacked_object == NULL) {
+      break;
+    } else {
+      Py_DECREF(unpacked_object);
+    }
+  };
+  Py_DECREF(unpacker);
+  return 0;
+}
+
+int LLVMFuzzerInitialize(int* argc, char*** argv) {
+  (void)argc;
+  (void)argv;
+  Py_InitializeEx(0);
+  PyInit_amsgpack();
+  return 0;
+}
+#endif  // AMSGPACK_FUZZER
