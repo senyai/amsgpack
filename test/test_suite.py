@@ -1,5 +1,5 @@
 from unittest import TestCase
-from amsgpack import Unpacker, Ext
+from amsgpack import Ext, unpackb
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
@@ -32,12 +32,6 @@ class SuiteTest(TestCase):
                 f"test_{name}".replace(".", "_").replace("-", "_"),
                 lambda self: self.subtest(ref, test_case),
             )
-
-
-def unpackb(data: bytes):
-    u = Unpacker()
-    u.feed(data)
-    return next(u)
 
 
 def _get_ref_value(data):

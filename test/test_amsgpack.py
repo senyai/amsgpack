@@ -1,13 +1,7 @@
 from collections.abc import Sequence
 from math import pi
 from unittest import TestCase
-from amsgpack import packb, Unpacker, Ext
-
-
-def unpackb(data: bytes):
-    u = Unpacker()
-    u.feed(bytes(data))
-    return next(u)
+from amsgpack import packb, Unpacker, Ext, unpackb
 
 
 Value = (
