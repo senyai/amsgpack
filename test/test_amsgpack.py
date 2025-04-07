@@ -144,10 +144,17 @@ class PackbTest(TestCase):
 
 class UnpackerTest(TestCase):
     def test_unpacker_gets_no_argumens(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaises(TypeError) as context:
             Unpacker("what", "is", "that")
-        with self.assertRaises(TypeError):
+        self.assertEqual(
+            str(context.exception),
+            "Unpacker() takes exactly 0 arguments (3 given)",
+        )
+        with self.assertRaises(TypeError) as context:
             Unpacker(what="is that")
+        self.assertEqual(
+            str(context.exception), "Unpacker() takes no keyword arguments"
+        )
 
     def test_feed_nothing(self):
         self.safeSequenceEqual(Unpacker(), ())

@@ -43,10 +43,17 @@ static inline void deque_clean(Deque *deque) {
   deque->size = 0;
 }
 
-static inline BytesNode *deque_append(Deque *deque, PyObject *bytes) {
+// returns: -1 - failure
+//           0 - success
+//           1 - no op, when bytes size is 0
+static inline int deque_append(Deque *deque, PyObject *bytes) {
+  Py_ssize_t const bytes_size = PyBytes_GET_SIZE(bytes);
+  if (bytes_size == 0) {
+    return 1;
+  }
   BytesNode *new_node = (BytesNode *)PyMem_Malloc(sizeof(BytesNode));
   if (new_node == NULL) {
-    return NULL;
+    return -1;
   }
   Py_INCREF(bytes);
   new_node->bytes = bytes;
@@ -60,8 +67,8 @@ static inline BytesNode *deque_append(Deque *deque, PyObject *bytes) {
     deque->deque_last->next = new_node;
     deque->deque_last = new_node;
   }
-  deque->size += PyBytes_GET_SIZE(bytes);
-  return new_node;
+  deque->size += bytes_size;
+  return 0;
 }
 
 static inline int deque_has_next_byte(Deque *deque) {
