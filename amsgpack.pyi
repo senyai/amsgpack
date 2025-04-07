@@ -1,25 +1,28 @@
-from typing import TypeAlias, Final
+from typing import TypeAlias, Final, Protocol
 from collections.abc import Sequence
+from datetime import datetime
 
 class Ext:
     code: Final[int]
     data: Final[bytes]
     def __init__(self, code: int, data: bytes) -> None: ...
 
-Value: TypeAlias = (
-    dict[str, "Value"]
-    | Sequence["Value"]
-    | str
-    | int
-    | float
-    | bool
-    | Ext
-    | None
-)
+Immutable: TypeAlias = str | int | float | bool | Ext | datetime | None
+Value: TypeAlias = dict[Immutable, "Value"] | Sequence["Value"] | Immutable
 
 class Unpacker:
     def feed(self, data: bytes) -> None: ...
     def __iter__(self) -> "Unpacker": ...
+    def __next__(self) -> Value: ...
+
+class BinaryStream(Protocol):
+    def read(self, size: int | None = -1, /) -> bytes: ...
+
+class FileUnpacker:
+    def __init__(
+        self, stream: BinaryStream, size: int | None = -1
+    ) -> None: ...
+    def __iter__(self) -> "FileUnpacker": ...
     def __next__(self) -> Value: ...
 
 def packb(obj: Value) -> bytes: ...

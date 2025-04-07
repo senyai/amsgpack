@@ -57,13 +57,19 @@ typedef struct {
   Parser parser;
 } Unpacker;
 
+typedef struct {
+  Unpacker unpacker;
+  PyObject* read_callback;
+  PyObject* read_size;
+} FileUnpacker;
+
 static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
   if (PyBytes_CheckExact(obj) == 0) {
     PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
                  Py_TYPE(obj)->tp_name);
     return NULL;
   }
-  if (deque_append(&self->deque, obj) == NULL) {
+  if (deque_append(&self->deque, obj) < 0) {
     return NULL;
   }
   Py_RETURN_NONE;
@@ -80,12 +86,12 @@ static PyMethodDef Unpacker_Methods[] = {
 
 PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   // Check that no arguments were provided
-  if (args != NULL && !PyArg_ParseTuple(args, ":Ext")) {
+  if (args != NULL && !PyArg_ParseTuple(args, ":Unpacker")) {
     return NULL;
   }
 
   if (kwds != NULL && PyDict_Size(kwds) > 0) {
-    PyErr_SetString(PyExc_TypeError, "Ext() takes no keyword arguments");
+    PyErr_SetString(PyExc_TypeError, "Unpacker() takes no keyword arguments");
     return NULL;
   }
 
@@ -96,6 +102,45 @@ PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     memset(&self->deque, 0, sizeof(Deque));
     // init parser
     memset(&self->parser, 0, sizeof(Parser));
+  }
+  return (PyObject*)self;
+}
+
+PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
+  PyObject* file = NULL;
+  PyObject* read_size = NULL;
+  if (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
+    return NULL;
+  }
+
+  if (kwds != NULL && PyDict_Size(kwds) > 0) {
+    PyErr_SetString(PyExc_TypeError,
+                    "FileUnpacker() takes no keyword arguments");
+    return NULL;
+  }
+  PyObject* read_callback = PyObject_GetAttrString(file, "read");
+  if (read_callback == NULL) {
+    return NULL;
+  }
+
+  if (Py_TYPE(read_callback)->tp_call == NULL) {
+    Py_DECREF(read_callback);
+    PyObject* errorMessage = PyUnicode_FromFormat("`%s.read` must be callable",
+                                                  Py_TYPE(file)->tp_name);
+    PyErr_SetObject(PyExc_TypeError, errorMessage);
+    Py_XDECREF(errorMessage);
+    return NULL;
+  }
+
+  FileUnpacker* self = (FileUnpacker*)type->tp_alloc(type, 0);
+
+  if (self != NULL) {
+    // init deque
+    memset(&self->unpacker.deque, 0, sizeof(Deque));
+    // init parser
+    memset(&self->unpacker.parser, 0, sizeof(Parser));
+    self->read_callback = read_callback;
+    self->read_size = read_size;
   }
   return (PyObject*)self;
 }
@@ -112,7 +157,13 @@ static void Unpacker_dealloc(Unpacker* self) {
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
-static PyObject* Unpacker_iter(PyObject* self) {
+static void FileUnpacker_dealloc(FileUnpacker* self) {
+  Unpacker_dealloc(&self->unpacker);
+  Py_XDECREF(self->read_callback);
+  Py_XDECREF(self->read_size);
+}
+
+static PyObject* AnyUnpacker_iter(PyObject* self) {
   Py_INCREF(self);
   return self;
 }
@@ -891,7 +942,7 @@ parse_next:
 
 // returns: -1 - failure
 //           0 - success
-int init_msgpack_byte_object() {
+static int init_msgpack_byte_object() {
   int i = 0;
   for (; i != 128; ++i) {
     PyObject* number = PyLong_FromLong(i);
@@ -927,16 +978,61 @@ int init_msgpack_byte_object() {
   return 0;
 }
 
+static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
+  // 1. Try to unpack current data
+  {
+    PyObject* current = Unpacker_iternext(&self->unpacker);
+    if (PyErr_Occurred() != NULL) {
+      return NULL;
+    }
+    if (current != NULL) {
+      return current;
+    }
+  }
+
+  // 2. Read some bytes
+  PyObject* bytes = self->read_size ? PyObject_CallOneArg(self->read_callback,
+                                                          self->read_size)
+                                    : PyObject_CallNoArgs(self->read_callback);
+  if (bytes == NULL) {
+    return NULL;
+  }
+  if (PyBytes_CheckExact(bytes) == 0) {
+    PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
+                 Py_TYPE(bytes)->tp_name);
+    return NULL;
+  }
+  // 3. Push bytes to the deque
+  if (deque_append(&self->unpacker.deque, bytes) != 0) {
+    return NULL;
+  }
+
+  // 4. Try to iterate
+  return Unpacker_iternext(&self->unpacker);
+}
+
 static PyTypeObject Unpacker_Type = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "amsgpack.Unpacker",
     .tp_basicsize = sizeof(Unpacker),
     .tp_doc = PyDoc_STR("Unpack bytes to python objects"),
     .tp_new = Unpacker_new,
     .tp_dealloc = (destructor)Unpacker_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_methods = Unpacker_Methods,
-    .tp_iter = Unpacker_iter,
+    .tp_iter = AnyUnpacker_iter,
     .tp_iternext = (iternextfunc)Unpacker_iternext,
+};
+
+static PyTypeObject FileUnpacker_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "amsgpack.FileUnpacker",
+    .tp_basicsize = sizeof(FileUnpacker),
+    .tp_doc = PyDoc_STR("Iteratively unpack binary stream to python objects"),
+    .tp_new = FileUnpacker_new,
+    .tp_dealloc = (destructor)FileUnpacker_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    //.tp_methods = FileUnpacker_Methods,
+    .tp_iter = AnyUnpacker_iter,
+    .tp_iternext = (iternextfunc)FileUnpacker_iternext,
 };
 
 PyMODINIT_FUNC PyInit_amsgpack(void) {
@@ -962,6 +1058,12 @@ PyMODINIT_FUNC PyInit_amsgpack(void) {
   if (PyModule_AddType(module, &Unpacker_Type) < 0) {
     goto error;
   }
+  if (PyType_Ready(&FileUnpacker_Type) < 0) {
+    goto error;
+  }
+  if (PyModule_AddType(module, &FileUnpacker_Type) < 0) {
+    goto error;
+  }
   return module;
 error:
   Py_DECREF(module);
@@ -983,7 +1085,7 @@ static PyObject* unpackb(PyObject* _module, PyObject* obj) {
     Py_DECREF(obj);
     return NULL;
   }
-  if (deque_append(&unpacker->deque, obj) == NULL) {
+  if (deque_append(&unpacker->deque, obj) < 0) {
     return NULL;
   }
   PyObject* ret = Unpacker_iternext(unpacker);
