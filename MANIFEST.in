@@ -1,1 +1,1 @@
-include *.h
+include *.h *.pyi *.typed
