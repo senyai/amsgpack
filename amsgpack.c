@@ -534,13 +534,12 @@ parse_next:
           if (data == NULL) {
             return NULL;
           }
-          int16_t word;
-          ((char*)&word)[0] = data[1];
-          ((char*)&word)[1] = data[0];
+          A_WORD word;
+          word.bytes[0] = data[1];
+          word.bytes[1] = data[0];
 
-          parsed_object = next_byte == '\xcd'
-                              ? PyLong_FromLong((long)(uint16_t)word)
-                              : PyLong_FromLong((long)word);
+          parsed_object = next_byte == '\xcd' ? PyLong_FromLong((long)word.us)
+                                              : PyLong_FromLong((long)word.s);
           if (parsed_object == NULL) {
             return NULL;
           }
