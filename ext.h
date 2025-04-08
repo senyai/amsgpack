@@ -10,7 +10,7 @@ typedef struct {
 static PyMemberDef Ext_members[] = {
     {"code", T_BYTE, offsetof(Ext, code), READONLY, "Ext code"},
     {"data", T_OBJECT_EX, offsetof(Ext, data), READONLY, "Ext data"},
-    {NULL} /* Sentinel */
+    {NULL, 0, 0, 0, NULL}  // Sentinel
 };
 
 static int Ext_init(Ext *self, PyObject *args, PyObject *kwargs) {
