@@ -83,7 +83,7 @@ PyDoc_STRVAR(unpacker_feed_doc,
 
 static PyMethodDef Unpacker_Methods[] = {
     {"feed", (PyCFunction)&unpacker_feed, METH_O, unpacker_feed_doc},
-    {NULL},
+    {NULL, NULL, 0, NULL}  // Sentinel
 };
 
 PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwargs) {
