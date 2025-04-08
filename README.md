@@ -41,3 +41,7 @@ bytearray(b'\x82\xa7compact\xc3\xa6schema\x00')
 >>> next(unpacker)
 {'compact': True, 'schema': 0}
 ```
+
+### Benchmark
+
+![Benchmark](benchmark/benchmark-0.0.5.svg "benchmark-0.0.5")
