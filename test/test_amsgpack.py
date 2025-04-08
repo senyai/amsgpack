@@ -302,6 +302,10 @@ class UnpackerTest(TestCase):
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (ext,))
 
+    def test_dict_with_array_value(self):
+        self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
+        self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
+
     def safeSequenceEqual(
         self, unpacker: Unpacker, ref: tuple[Value, ...]
     ) -> None:
