@@ -1,0 +1,11 @@
+{
+    "cSpell.words": [
+        "amsgpack",
+        "bytearray",
+        "DECREF",
+        "kwargs",
+        "packb",
+        "unpackb",
+        "XDECREF"
+    ]
+}
