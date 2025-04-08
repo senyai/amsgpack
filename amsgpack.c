@@ -1085,6 +1085,8 @@ static PyObject* unpackb(PyObject* _module, PyObject* args, PyObject* kwargs) {
       return NULL;
     }
     obj = bytes_obj;
+  } else {
+    Py_INCREF(obj);  // so we can safely decref it later in this function
   }
   PyObject* no_args = PyTuple_New(0);
   Unpacker* unpacker = (Unpacker*)Unpacker_new(&Unpacker_Type, no_args, kwargs);
@@ -1093,7 +1095,9 @@ static PyObject* unpackb(PyObject* _module, PyObject* args, PyObject* kwargs) {
     Py_DECREF(obj);
     return NULL;
   }
-  if (deque_append(&unpacker->deque, obj) < 0) {
+  int const append_result = deque_append(&unpacker->deque, obj);
+  Py_DECREF(obj);
+  if (append_result < 0) {
     return NULL;
   }
   PyObject* ret = Unpacker_iternext(unpacker);
