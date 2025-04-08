@@ -1107,6 +1107,7 @@ static PyObject* unpackb(PyObject* _module, PyObject* args, PyObject* kwargs) {
     PyErr_SetString(PyExc_ValueError, "Extra data");
     goto error;
   }
+  Py_DECREF(unpacker);
   return ret;
 error:
   Py_DECREF(unpacker);
