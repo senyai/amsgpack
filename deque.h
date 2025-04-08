@@ -184,7 +184,7 @@ static inline Py_ssize_t deque_peek_size(Deque *deque,
       memcpy((char *)&ret + char_idx, iter_data, copy_size);
       left_to_copy -= copy_size;
       char_idx += iter_size;
-      BytesNode *cur = cur->next;
+      cur = cur->next;
     }
   }
 
