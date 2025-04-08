@@ -12,6 +12,14 @@ class BadFileNotCallable:
     read = "string"
 
 
+class InfiniteFile:
+    size = object()
+
+    def read(self, size: int | None = -1, /):
+        self.size = size
+        return b"\x91\xff"
+
+
 class FileUnpackerTest(TestCase):
     def test_basic(self):
         buf = BytesIO()
@@ -53,7 +61,7 @@ class FileUnpackerTest(TestCase):
             amsgpack.FileUnpacker(BadFileStr(), unicorn=True)
         self.assertEqual(
             str(context.exception),
-            "FileUnpacker() takes no keyword arguments",
+            "'unicorn' is an invalid keyword argument for Unpacker()",
         )
 
     def test_no_arguments(self):
@@ -63,3 +71,15 @@ class FileUnpackerTest(TestCase):
             str(context.exception),
             "FileUnpacker() takes at least 1 argument (0 given)",
         )
+
+    def test_read_without_arguments(self):
+        infinite_file = InfiniteFile()
+        unpacker = amsgpack.FileUnpacker(infinite_file)
+        self.assertEqual(next(unpacker), [-1])
+        self.assertEqual(infinite_file.size, -1)
+
+    def test_read_with_argument(self):
+        infinite_file = InfiniteFile()
+        unpacker = amsgpack.FileUnpacker(infinite_file, 1024, tuple=True)
+        self.assertEqual(next(unpacker), (-1,))
+        self.assertEqual(infinite_file.size, 1024)

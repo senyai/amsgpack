@@ -148,12 +148,13 @@ class UnpackerTest(TestCase):
             Unpacker("what", "is", "that")
         self.assertEqual(
             str(context.exception),
-            "Unpacker() takes exactly 0 arguments (3 given)",
+            "Unpacker() takes at most 1 argument (3 given)",
         )
         with self.assertRaises(TypeError) as context:
             Unpacker(what="is that")
         self.assertEqual(
-            str(context.exception), "Unpacker() takes no keyword arguments"
+            str(context.exception),
+            "'what' is an invalid keyword argument for Unpacker()",
         )
 
     def test_feed_nothing(self):
