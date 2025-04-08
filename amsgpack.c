@@ -1030,7 +1030,6 @@ static PyTypeObject FileUnpacker_Type = {
     .tp_new = FileUnpacker_new,
     .tp_dealloc = (destructor)FileUnpacker_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-    //.tp_methods = FileUnpacker_Methods,
     .tp_iter = AnyUnpacker_iter,
     .tp_iternext = (iternextfunc)FileUnpacker_iternext,
 };
