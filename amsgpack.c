@@ -9,18 +9,19 @@
 #define VERSION "0.0.3"
 #define MiB128 134217728
 
-static PyObject* unpackb(PyObject* _module, PyObject* bytes);
+static PyObject* unpackb(PyObject* _module, PyObject* args, PyObject* kwargs);
 
 PyDoc_STRVAR(amsgpack_packb_doc,
              "packb($module, obj, /)\n--\n\n"
              "Serialize ``obj`` to a MessagePack formatted ``bytearray``.");
 PyDoc_STRVAR(amsgpack_unpackb_doc,
-             "unpackb($module, data, /)\n--\n\n"
+             "unpackb($module, data, /, *, tuple: bool = True)\n--\n\n"
              "Deserialize ``data`` (a ``bytes`` object) to a Python object.");
 
 static PyMethodDef AMsgPackMethods[] = {
     {"packb", (PyCFunction)packb, METH_O, amsgpack_packb_doc},
-    {"unpackb", (PyCFunction)unpackb, METH_O, amsgpack_unpackb_doc},
+    {"unpackb", (PyCFunction)(PyCFunction)(void (*)(void))unpackb,
+     METH_VARARGS | METH_KEYWORDS, amsgpack_unpackb_doc},
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
@@ -34,8 +35,8 @@ static PyObject* msgpack_byte_object[256];
 static PyObject* epoch = NULL;
 
 typedef struct {
-  enum Action { LIST_APPEND, DICT_KEY, DICT_VALUE } action;
-  PyObject* iterable;
+  enum Action { SEQUENCE_APPEND, DICT_KEY, DICT_VALUE } action;
+  PyObject* sequence;
   Py_ssize_t size;
   Py_ssize_t pos;
   PyObject* key;
@@ -55,6 +56,7 @@ typedef struct {
   PyObject_HEAD;
   Deque deque;
   Parser parser;
+  int use_tuple;
 } Unpacker;
 
 typedef struct {
@@ -84,14 +86,11 @@ static PyMethodDef Unpacker_Methods[] = {
     {NULL},
 };
 
-PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
-  // Check that no arguments were provided
-  if (args != NULL && !PyArg_ParseTuple(args, ":Unpacker")) {
-    return NULL;
-  }
-
-  if (kwds != NULL && PyDict_Size(kwds) > 0) {
-    PyErr_SetString(PyExc_TypeError, "Unpacker() takes no keyword arguments");
+PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwargs) {
+  static char* keywords[] = {"tuple", NULL};
+  int use_tuple = 0;
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:Unpacker", keywords,
+                                   &use_tuple)) {
     return NULL;
   }
 
@@ -102,22 +101,19 @@ PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     memset(&self->deque, 0, sizeof(Deque));
     // init parser
     memset(&self->parser, 0, sizeof(Parser));
+    self->use_tuple = use_tuple;
   }
   return (PyObject*)self;
 }
 
-PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
+PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
+                           PyObject* kwargs) {
   PyObject* file = NULL;
   PyObject* read_size = NULL;
   if (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
     return NULL;
   }
 
-  if (kwds != NULL && PyDict_Size(kwds) > 0) {
-    PyErr_SetString(PyExc_TypeError,
-                    "FileUnpacker() takes no keyword arguments");
-    return NULL;
-  }
   PyObject* read_callback = PyObject_GetAttrString(file, "read");
   if (read_callback == NULL) {
     return NULL;
@@ -132,16 +128,14 @@ PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     return NULL;
   }
 
-  FileUnpacker* self = (FileUnpacker*)type->tp_alloc(type, 0);
-
-  if (self != NULL) {
-    // init deque
-    memset(&self->unpacker.deque, 0, sizeof(Deque));
-    // init parser
-    memset(&self->unpacker.parser, 0, sizeof(Parser));
-    self->read_callback = read_callback;
-    self->read_size = read_size;
+  PyObject* no_args = PyTuple_New(0);
+  FileUnpacker* self = (FileUnpacker*)Unpacker_new(type, no_args, kwargs);
+  Py_DECREF(no_args);
+  if (self == NULL) {
+    return NULL;
   }
+  self->read_callback = read_callback;
+  self->read_size = read_size;
   return (PyObject*)self;
 }
 
@@ -149,7 +143,7 @@ static void Unpacker_dealloc(Unpacker* self) {
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
     Py_ssize_t idx = self->parser.stack_length - 1;
-    Py_DECREF(self->parser.stack[idx].iterable);
+    Py_DECREF(self->parser.stack[idx].sequence);
     Py_XDECREF(self->parser.stack[idx].key);
     memset(&self->parser.stack[idx], 0, sizeof(Stack));
     self->parser.stack_length = idx;
@@ -320,7 +314,7 @@ parse_next:
         }
         deque_advance_first_bytes(&self->deque, 1);
         Stack const item = {.action = DICT_KEY,
-                            .iterable = parsed_object,
+                            .sequence = parsed_object,
                             .size = length,
                             .pos = 0};
         self->parser.stack[self->parser.stack_length++] = item;
@@ -347,7 +341,8 @@ parse_next:
           return NULL;
         }
         Py_ssize_t const length = next_byte & 0x0f;
-        parsed_object = PyList_New(length);
+        parsed_object =
+            self->use_tuple == 0 ? PyList_New(length) : PyTuple_New(length);
         if (parsed_object == NULL) {
           return NULL;
         }
@@ -355,8 +350,8 @@ parse_next:
         if (length == 0) {
           break;
         }
-        Stack const item = {.action = LIST_APPEND,
-                            .iterable = parsed_object,
+        Stack const item = {.action = SEQUENCE_APPEND,
+                            .sequence = parsed_object,
                             .size = length,
                             .pos = 0};
         self->parser.stack[self->parser.stack_length++] = item;
@@ -812,8 +807,8 @@ parse_next:
         if (length == 0) {
           break;
         }
-        Stack const item = {.action = LIST_APPEND,
-                            .iterable = parsed_object,
+        Stack const item = {.action = SEQUENCE_APPEND,
+                            .sequence = parsed_object,
                             .size = length,
                             .pos = 0};
         self->parser.stack[self->parser.stack_length++] = item;
@@ -879,7 +874,7 @@ parse_next:
           break;
         }
         Stack const item = {.action = DICT_KEY,
-                            .iterable = parsed_object,
+                            .sequence = parsed_object,
                             .size = length,
                             .pos = 0};
         self->parser.stack[self->parser.stack_length++] = item;
@@ -896,12 +891,15 @@ parse_next:
   if (self->parser.stack_length > 0) {
     Stack* item = &self->parser.stack[self->parser.stack_length - 1];
     switch (item->action) {
-      case LIST_APPEND:
+      case SEQUENCE_APPEND:
         if (item->pos < item->size) {
-          PyList_SET_ITEM(item->iterable, item->pos++, parsed_object);
+          self->use_tuple == 0
+              ? PyList_SET_ITEM(item->sequence, item->pos, parsed_object)
+              : PyTuple_SET_ITEM(item->sequence, item->pos, parsed_object);
+          item->pos += 1;
         }
         if (item->pos == item->size) {
-          parsed_object = item->iterable;
+          parsed_object = item->sequence;
           memset(item, 0, sizeof(Stack));
           self->parser.stack_length -= 1;
         } else {
@@ -916,7 +914,7 @@ parse_next:
         goto parse_next;
       case DICT_VALUE: {
         if (item->pos < item->size) {
-          if (PyDict_SetItem(item->iterable, item->key, parsed_object) != 0) {
+          if (PyDict_SetItem(item->sequence, item->key, parsed_object) != 0) {
             return NULL;
           }
           Py_DECREF(item->key);
@@ -925,7 +923,7 @@ parse_next:
           item->key = NULL;
         }
         if (item->pos == item->size) {
-          parsed_object = item->iterable;
+          parsed_object = item->sequence;
           memset(item, 0, sizeof(Stack));
           self->parser.stack_length -= 1;
         } else {
@@ -1069,17 +1067,25 @@ error:
   return NULL;
 }
 
-static PyObject* unpackb(PyObject* _module, PyObject* obj) {
+static PyObject* unpackb(PyObject* _module, PyObject* args, PyObject* kwargs) {
   (void)_module;
+  PyObject* obj = NULL;
+  if (!PyArg_ParseTuple(args, "O:unpackb", &obj)) {
+    return NULL;
+  }
+
   if (PyBytes_CheckExact(obj) == 0) {
-    obj = PyBytes_FromObject(obj);
-    if (obj == NULL) {
-      PyErr_Format(PyExc_TypeError, "a obj object is required, not '%.100s'",
+    PyObject* bytes_obj = PyBytes_FromObject(obj);
+    if (bytes_obj == NULL) {
+      PyErr_Format(PyExc_TypeError, "an obj object is required, not '%.100s'",
                    Py_TYPE(obj)->tp_name);
       return NULL;
     }
+    obj = bytes_obj;
   }
-  Unpacker* unpacker = (Unpacker*)Unpacker_new(&Unpacker_Type, NULL, NULL);
+  PyObject* no_args = PyTuple_New(0);
+  Unpacker* unpacker = (Unpacker*)Unpacker_new(&Unpacker_Type, no_args, kwargs);
+  Py_DECREF(no_args);
   if (unpacker == NULL) {
     Py_DECREF(obj);
     return NULL;
