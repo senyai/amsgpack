@@ -167,7 +167,7 @@ typedef union A_WORD {
   uint16_t us;
   char bytes[2];
 } A_WORD;
-typedef char _check_dword_size[sizeof(A_WORD) == 2 ? 1 : -1];
+typedef char check_word_size[sizeof(A_WORD) == 2 ? 1 : -1];
 
 typedef union A_DWORD {
   int32_t l;
@@ -176,7 +176,7 @@ typedef union A_DWORD {
   char bytes[4];
 } A_DWORD;
 
-typedef char _check_dword_size[sizeof(A_DWORD) == 4 ? 1 : -1];
+typedef char check_dword_size[sizeof(A_DWORD) == 4 ? 1 : -1];
 
 typedef union A_QWORD {
   int64_t ll;
@@ -185,7 +185,7 @@ typedef union A_QWORD {
   char bytes[8];
 } A_QWORD;
 
-typedef char _check_dword_size[sizeof(A_QWORD) == 8 ? 1 : -1];
+typedef char check_qword_size[sizeof(A_QWORD) == 8 ? 1 : -1];
 
 typedef union A_TIMESTAMP_96 {
 #pragma pack(4)
