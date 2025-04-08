@@ -158,9 +158,9 @@ static void Unpacker_dealloc(Unpacker* self) {
 }
 
 static void FileUnpacker_dealloc(FileUnpacker* self) {
-  Unpacker_dealloc(&self->unpacker);
   Py_XDECREF(self->read_callback);
   Py_XDECREF(self->read_size);
+  Unpacker_dealloc(&self->unpacker);
 }
 
 static PyObject* AnyUnpacker_iter(PyObject* self) {
