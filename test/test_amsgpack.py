@@ -134,6 +134,9 @@ class PackbTest(TestCase):
         self.assertEqual(packb(()), b"\x90")
         self.assertEqual(packb((1, 2, 3)), b"\x93\x01\x02\x03")
 
+    def test_can_pack_nested_dict(self):
+        self.assertEqual(packb({"a": {"b": "c"}}), b"\x81\xa1a\x81\xa1b\xa1c")
+
     def test_unsupported_type_raises_exception(self):
         with self.assertRaises(TypeError) as context:
             packb(1j)

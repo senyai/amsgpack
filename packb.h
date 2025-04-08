@@ -194,7 +194,8 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
       return -1;
     }
     PyObject *key, *value;
-    while (PyDict_Next(obj, &pos, &key, &value)) {
+    Py_ssize_t dict_pos = 0;
+    while (PyDict_Next(obj, &dict_pos, &key, &value)) {
       if (packb_(key, byte_array, level + 1) != 0) {
         return -1;
       }
