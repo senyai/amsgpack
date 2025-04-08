@@ -172,6 +172,7 @@ typedef char _check_dword_size[sizeof(A_WORD) == 2 ? 1 : -1];
 typedef union A_DWORD {
   int32_t l;
   uint32_t ul;
+  float f;
   char bytes[4];
 } A_DWORD;
 
@@ -180,6 +181,7 @@ typedef char _check_dword_size[sizeof(A_DWORD) == 4 ? 1 : -1];
 typedef union A_QWORD {
   int64_t ll;
   uint64_t ull;
+  double d;
   char bytes[8];
 } A_QWORD;
 
@@ -624,13 +626,13 @@ parse_next:
           if (data == NULL) {
             return NULL;
           }
-          float dword;
-          ((char*)&dword)[0] = data[3];
-          ((char*)&dword)[1] = data[2];
-          ((char*)&dword)[2] = data[1];
-          ((char*)&dword)[3] = data[0];
+          A_DWORD dword;
+          dword.bytes[0] = data[3];
+          dword.bytes[1] = data[2];
+          dword.bytes[2] = data[1];
+          dword.bytes[3] = data[0];
 
-          parsed_object = PyFloat_FromDouble((double)dword);
+          parsed_object = PyFloat_FromDouble((double)dword.f);
           if (parsed_object == NULL) {
             return NULL;
           }
@@ -651,16 +653,15 @@ parse_next:
           if (data == NULL) {
             return NULL;
           }
-          double value;
-          char* value_bytes = (char*)&value;
-          value_bytes[0] = data[7];
-          value_bytes[1] = data[6];
-          value_bytes[2] = data[5];
-          value_bytes[3] = data[4];
-          value_bytes[4] = data[3];
-          value_bytes[5] = data[2];
-          value_bytes[6] = data[1];
-          value_bytes[7] = data[0];
+          A_QWORD qword;
+          qword.bytes[0] = data[7];
+          qword.bytes[1] = data[6];
+          qword.bytes[2] = data[5];
+          qword.bytes[3] = data[4];
+          qword.bytes[4] = data[3];
+          qword.bytes[5] = data[2];
+          qword.bytes[6] = data[1];
+          qword.bytes[7] = data[0];
           if (allocated) {
             PyMem_Free(allocated);
           } else {
