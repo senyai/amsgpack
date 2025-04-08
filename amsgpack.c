@@ -891,7 +891,7 @@ parse_next:
     deque_advance_first_bytes(&self->deque, 1);
     Py_INCREF(parsed_object);
   }
-  if (self->parser.stack_length > 0) {
+  while (self->parser.stack_length > 0) {
     Stack* item = &self->parser.stack[self->parser.stack_length - 1];
     switch (item->action) {
       case SEQUENCE_APPEND:
