@@ -667,7 +667,10 @@ parse_next:
           } else {
             deque_advance_first_bytes(&self->deque, 8);
           }
-          parsed_object = PyFloat_FromDouble(value);
+          parsed_object = PyFloat_FromDouble(qword.d);
+          if (parsed_object == NULL) {
+            return NULL;
+          }
           break;
         }
         return NULL;
