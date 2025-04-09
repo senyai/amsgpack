@@ -283,7 +283,7 @@ parse_next:
   PyObject* parsed_object = NULL;
   switch (next_byte) {
     case '\x80': {
-      parsed_object = PyDict_New();
+      parsed_object = _PyDict_NewPresized(0);
       if (parsed_object == NULL) {
         return NULL;
       }
@@ -310,7 +310,7 @@ parse_next:
         return NULL;
       }
       Py_ssize_t const length = next_byte & 0x0f;
-      parsed_object = PyDict_New();
+      parsed_object = _PyDict_NewPresized(length);
       if (parsed_object == NULL) {
         return NULL;
       }
@@ -868,7 +868,7 @@ parse_next:
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      parsed_object = PyDict_New();
+      parsed_object = _PyDict_NewPresized(length);
       if (length == 0) {
         break;
       }
