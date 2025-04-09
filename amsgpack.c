@@ -912,10 +912,13 @@ parse_next:
         goto parse_next;
       case DICT_VALUE: {
         if (item->pos < item->size) {
-          if (PyDict_SetItem(item->sequence, item->key, parsed_object) != 0) {
+          int const set_item_result =
+              PyDict_SetItem(item->sequence, item->key, parsed_object);
+          Py_DECREF(item->key);
+          Py_DECREF(parsed_object);
+          if (set_item_result != 0) {
             return NULL;
           }
-          Py_DECREF(item->key);
           item->action = DICT_KEY;
           item->pos += 1;
           item->key = NULL;
