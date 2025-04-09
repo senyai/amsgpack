@@ -511,9 +511,9 @@ parse_next:
       if (deque_has_n_next_byte(&self->deque, 2)) {
         deque_advance_first_bytes(&self->deque, 1);
         char const byte = deque_peek_byte(&self->deque);
-        parsed_object = next_byte == '\xcc'
-                            ? PyLong_FromLong((long)(unsigned char)byte)
-                            : PyLong_FromLong((long)byte);
+        long const value =
+            next_byte == '\xcc' ? (long)(unsigned char)byte : (long)byte;
+        parsed_object = PyLong_FromLong(value);
         if (parsed_object == NULL) {
           return NULL;
         }
