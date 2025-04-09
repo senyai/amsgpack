@@ -13,6 +13,8 @@ data = defaultdict(lambda: defaultdict(dict))
 file_names = set()
 module_names = set()
 for benchmark in benchmarks:
+    if not benchmark["name"].endswith("_median"):
+        continue
     benchmark_name = benchmark["name"].partition("/")[0]
     module_name, file_name = benchmark["label"].split("(")
     file_name = file_name.rstrip(")")
