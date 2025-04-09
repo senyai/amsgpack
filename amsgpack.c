@@ -1125,7 +1125,12 @@ error:
 #ifdef AMSGPACK_FUZZER
 // fuzzer, forgive me
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  Unpacker* unpacker = (Unpacker*)Unpacker_new(&Unpacker_Type, NULL, NULL);
+  PyObject* no_args = PyTuple_New(0);
+  PyObject* no_kwargs = PyDict_New();
+  Unpacker* unpacker =
+      (Unpacker*)Unpacker_new(&Unpacker_Type, no_args, no_kwargs);
+  Py_DECREF(no_args);
+  Py_DECREF(no_kwargs);
   assert(unpacker != NULL);
   {
     PyObject* bytes = PyBytes_FromStringAndSize((char const*)data, size);
