@@ -279,411 +279,198 @@ parse_next:
   if (!deque_has_next_byte(&self->deque)) {
     return NULL;
   }
-  char next_byte = deque_peek_byte(&self->deque);
-  PyObject* parsed_object = msgpack_byte_object[(unsigned char)next_byte];
-  if (parsed_object == NULL) {
-    switch (next_byte) {
-      case '\x80': {
-        parsed_object = PyDict_New();
-        if (parsed_object == NULL) {
-          return NULL;
-        }
-        deque_advance_first_bytes(&self->deque, 1);
+  char const next_byte = deque_peek_byte(&self->deque);
+  PyObject* parsed_object = NULL;
+  switch (next_byte) {
+    case '\x80': {
+      parsed_object = PyDict_New();
+      if (parsed_object == NULL) {
+        return NULL;
+      }
+      deque_advance_first_bytes(&self->deque, 1);
+      break;
+    }
+    case '\x81':
+    case '\x82':
+    case '\x83':
+    case '\x84':
+    case '\x85':
+    case '\x86':
+    case '\x87':
+    case '\x88':
+    case '\x89':
+    case '\x8a':
+    case '\x8b':
+    case '\x8c':
+    case '\x8d':
+    case '\x8e':
+    case '\x8f': {  // fixmap
+      if (can_not_append_stack(&self->parser)) {
+        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+        return NULL;
+      }
+      Py_ssize_t const length = next_byte & 0x0f;
+      parsed_object = PyDict_New();
+      if (parsed_object == NULL) {
+        return NULL;
+      }
+      deque_advance_first_bytes(&self->deque, 1);
+      Stack const item = {.action = DICT_KEY,
+                          .sequence = parsed_object,
+                          .size = length,
+                          .pos = 0};
+      self->parser.stack[self->parser.stack_length++] = item;
+      goto parse_next;
+    }
+    case '\x90':
+    case '\x91':
+    case '\x92':
+    case '\x93':
+    case '\x94':
+    case '\x95':
+    case '\x96':
+    case '\x97':
+    case '\x98':
+    case '\x99':
+    case '\x9a':
+    case '\x9b':
+    case '\x9c':
+    case '\x9d':
+    case '\x9e':
+    case '\x9f': {  // fixarray
+      if (can_not_append_stack(&self->parser)) {
+        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+        return NULL;
+      }
+      Py_ssize_t const length = next_byte & 0x0f;
+      parsed_object = (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
+      if (parsed_object == NULL) {
+        return NULL;
+      }
+      deque_advance_first_bytes(&self->deque, 1);
+      if (length == 0) {
         break;
       }
-      case '\x81':
-      case '\x82':
-      case '\x83':
-      case '\x84':
-      case '\x85':
-      case '\x86':
-      case '\x87':
-      case '\x88':
-      case '\x89':
-      case '\x8a':
-      case '\x8b':
-      case '\x8c':
-      case '\x8d':
-      case '\x8e':
-      case '\x8f': {  // fixmap
-        if (can_not_append_stack(&self->parser)) {
-          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-          return NULL;
-        }
-        Py_ssize_t const length = next_byte & 0x0f;
-        parsed_object = PyDict_New();
-        if (parsed_object == NULL) {
-          return NULL;
-        }
-        deque_advance_first_bytes(&self->deque, 1);
-        Stack const item = {.action = DICT_KEY,
-                            .sequence = parsed_object,
-                            .size = length,
-                            .pos = 0};
-        self->parser.stack[self->parser.stack_length++] = item;
-        goto parse_next;
-      }
-      case '\x90':
-      case '\x91':
-      case '\x92':
-      case '\x93':
-      case '\x94':
-      case '\x95':
-      case '\x96':
-      case '\x97':
-      case '\x98':
-      case '\x99':
-      case '\x9a':
-      case '\x9b':
-      case '\x9c':
-      case '\x9d':
-      case '\x9e':
-      case '\x9f': {  // fixarray
-        if (can_not_append_stack(&self->parser)) {
-          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-          return NULL;
-        }
-        Py_ssize_t const length = next_byte & 0x0f;
-        parsed_object =
-            (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
-        if (parsed_object == NULL) {
-          return NULL;
-        }
-        deque_advance_first_bytes(&self->deque, 1);
-        if (length == 0) {
-          break;
-        }
-        Stack const item = {.action = SEQUENCE_APPEND,
-                            .sequence = parsed_object,
-                            .size = length,
-                            .pos = 0};
-        self->parser.stack[self->parser.stack_length++] = item;
-        goto parse_next;
-      }
+      Stack const item = {.action = SEQUENCE_APPEND,
+                          .sequence = parsed_object,
+                          .size = length,
+                          .pos = 0};
+      self->parser.stack[self->parser.stack_length++] = item;
+      goto parse_next;
+    }
 
-      case '\xa0': {
-        parsed_object = PyUnicode_FromStringAndSize(NULL, 0);
+    case '\xa0': {
+      parsed_object = PyUnicode_FromStringAndSize(NULL, 0);
+      if (parsed_object == NULL) {
+        return NULL;
+      }
+      deque_advance_first_bytes(&self->deque, 1);
+      break;
+    }
+    case '\xa1':
+    case '\xa2':
+    case '\xa3':
+    case '\xa4':
+    case '\xa5':
+    case '\xa6':
+    case '\xa7':
+    case '\xa8':
+    case '\xa9':
+    case '\xaa':
+    case '\xab':
+    case '\xac':
+    case '\xad':
+    case '\xae':
+    case '\xaf':
+    case '\xb0':
+    case '\xb1':
+    case '\xb2':
+    case '\xb3':
+    case '\xb4':
+    case '\xb5':
+    case '\xb6':
+    case '\xb7':
+    case '\xb8':
+    case '\xb9':
+    case '\xba':
+    case '\xbb':
+    case '\xbc':
+    case '\xbd':
+    case '\xbe':
+    case '\xbf': {  // fixstr
+      Py_ssize_t const length = next_byte & 0x1f;
+      if (deque_has_n_next_byte(&self->deque, length + 1)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = 0;
+        char* allocated = deque_read_bytes(&data, &self->deque, length);
+        if (data == NULL) {
+          return NULL;
+        }
+        parsed_object = PyUnicode_FromStringAndSize(data, length);
+        if (allocated) {
+          PyMem_Free(allocated);
+        } else {
+          deque_advance_first_bytes(&self->deque, length);
+        }
         if (parsed_object == NULL) {
           return NULL;
         }
-        deque_advance_first_bytes(&self->deque, 1);
         break;
       }
-      case '\xa1':
-      case '\xa2':
-      case '\xa3':
-      case '\xa4':
-      case '\xa5':
-      case '\xa6':
-      case '\xa7':
-      case '\xa8':
-      case '\xa9':
-      case '\xaa':
-      case '\xab':
-      case '\xac':
-      case '\xad':
-      case '\xae':
-      case '\xaf':
-      case '\xb0':
-      case '\xb1':
-      case '\xb2':
-      case '\xb3':
-      case '\xb4':
-      case '\xb5':
-      case '\xb6':
-      case '\xb7':
-      case '\xb8':
-      case '\xb9':
-      case '\xba':
-      case '\xbb':
-      case '\xbc':
-      case '\xbd':
-      case '\xbe':
-      case '\xbf': {  // fixstr
-        Py_ssize_t const length = next_byte & 0x1f;
-        if (deque_has_n_next_byte(&self->deque, length + 1)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = 0;
-          char* allocated = deque_read_bytes(&data, &self->deque, length);
-          if (data == NULL) {
-            return NULL;
-          }
-          parsed_object = PyUnicode_FromStringAndSize(data, length);
-          if (allocated) {
-            PyMem_Free(allocated);
+      return NULL;
+    }
+    case '\xc1': {  // (never used)
+      PyErr_SetString(PyExc_ValueError, "amsgpack: 0xc1 byte must not be used");
+      return NULL;
+    }
+    case '\xc4':  // bin 8
+    case '\xc5':  // bin 16
+    case '\xc6':  // bin 32
+    {
+      unsigned char const size_size = 1 << (next_byte - '\xc4');
+      if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
+        Py_ssize_t length = deque_peek_size(&self->deque, size_size);
+        if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
+          deque_advance_first_bytes(&self->deque, 1 + size_size);
+          if (length == 0) {
+            parsed_object = PyBytes_FromStringAndSize(NULL, length);
           } else {
-            deque_advance_first_bytes(&self->deque, length);
-          }
-          if (parsed_object == NULL) {
-            return NULL;
-          }
-          break;
-        }
-        return NULL;
-      }
-      case '\xc1': {  // (never used)
-        PyErr_SetString(PyExc_ValueError,
-                        "amsgpack: 0xc1 byte must not be used");
-        return NULL;
-      }
-      case '\xc4':  // bin 8
-      case '\xc5':  // bin 16
-      case '\xc6':  // bin 32
-      {
-        unsigned char const size_size = 1 << (next_byte - '\xc4');
-        if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
-          Py_ssize_t length = deque_peek_size(&self->deque, size_size);
-          if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
-            deque_advance_first_bytes(&self->deque, 1 + size_size);
-            if (length == 0) {
-              parsed_object = PyBytes_FromStringAndSize(NULL, length);
-            } else {
-              if (length > MiB128) {
-                return size_error("bytes", length, MiB128);
-              }
-              char const* data = 0;
-              char* allocated = deque_read_bytes(&data, &self->deque, length);
-              if (data == NULL) {
-                return NULL;
-              }
-              parsed_object = PyBytes_FromStringAndSize(data, length);
-              if (allocated) {
-                PyMem_Free(allocated);
-              } else {
-                deque_advance_first_bytes(&self->deque, length);
-              }
+            if (length > MiB128) {
+              return size_error("bytes", length, MiB128);
             }
-            if (parsed_object == NULL) {
-              return NULL;
-            }
-            break;
-          }
-        }
-        return NULL;
-      }
-      case '\xc7':  // ext 8
-      case '\xc8':  // ext 16
-      case '\xc9':  // ext 32
-      {
-        unsigned char const size_size = 1 << (next_byte - '\xc7');
-        if (deque_has_n_next_byte(&self->deque, 1 + size_size + 1)) {
-          Py_ssize_t const data_length =
-              deque_peek_size(&self->deque, size_size);
-          if (data_length >= MiB128) {
-            return NULL;
-          }
-          if (deque_has_n_next_byte(&self->deque,
-                                    1 + size_size + 1 + data_length)) {
-            deque_advance_first_bytes(&self->deque, 1 + size_size);
             char const* data = 0;
-            char* allocated =
-                deque_read_bytes(&data, &self->deque, data_length + 1);
+            char* allocated = deque_read_bytes(&data, &self->deque, length);
             if (data == NULL) {
               return NULL;
             }
-            char const code = data[0];
-            if (code == -1 &&
-                (data_length == 8 || data_length == 4 || data_length == 12)) {
-              parsed_object = ext_to_timestamp(data + 1, data_length);
-              if (parsed_object == NULL) {
-                return NULL;  // likely overflow error
-              }
-            } else {
-              Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
-              if (ext == NULL) {
-                return NULL;  // Allocation failed
-              }
-              ext->code = code;
-              ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
-              if (ext->data == NULL) {
-                return NULL;
-              }
-              parsed_object = (PyObject*)ext;
-            }
+            parsed_object = PyBytes_FromStringAndSize(data, length);
             if (allocated) {
               PyMem_Free(allocated);
             } else {
-              deque_advance_first_bytes(&self->deque, data_length + 1);
+              deque_advance_first_bytes(&self->deque, length);
             }
-            break;
           }
-        }
-        return NULL;
-      }
-      case '\xd0':    // int_8
-      case '\xcc': {  // uint_8
-        if (deque_has_n_next_byte(&self->deque, 2)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const byte = deque_peek_byte(&self->deque);
-          parsed_object = next_byte == '\xcc'
-                              ? PyLong_FromLong((long)(unsigned char)byte)
-                              : PyLong_FromLong((long)byte);
-          if (parsed_object == NULL) {
-            return NULL;
-          }
-          deque_advance_first_bytes(&self->deque, 1);
-          break;
-        }
-        return NULL;
-      }
-      case '\xd1':    // int_16
-      case '\xcd': {  // uint_16
-        if (deque_has_n_next_byte(&self->deque, 3)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = 0;
-          char* allocated = deque_read_bytes(&data, &self->deque, 2);
-          if (data == NULL) {
-            return NULL;
-          }
-          A_WORD word;
-          word.bytes[0] = data[1];
-          word.bytes[1] = data[0];
-
-          parsed_object = next_byte == '\xcd' ? PyLong_FromLong((long)word.us)
-                                              : PyLong_FromLong((long)word.s);
-          if (parsed_object == NULL) {
-            return NULL;
-          }
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
-            deque_advance_first_bytes(&self->deque, 2);
-          }
-          break;
-        }
-        return NULL;
-      }
-      case '\xd2':    // int_32
-      case '\xce': {  // uint_32
-        if (deque_has_n_next_byte(&self->deque, 5)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = 0;
-          char* allocated = deque_read_bytes(&data, &self->deque, 4);
-          if (data == NULL) {
-            return NULL;
-          }
-          A_DWORD dword;
-          dword.bytes[0] = data[3];
-          dword.bytes[1] = data[2];
-          dword.bytes[2] = data[1];
-          dword.bytes[3] = data[0];
-
-          parsed_object = next_byte == '\xce'
-                              ? PyLong_FromUnsignedLong(dword.ul)
-                              : PyLong_FromLong(dword.l);
-          if (parsed_object == NULL) {
-            return NULL;
-          }
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
-            deque_advance_first_bytes(&self->deque, 4);
-          }
-          break;
-        }
-        return NULL;
-      }
-      case '\xd3':    // int_64
-      case '\xcf': {  // uint_64
-        if (deque_has_n_next_byte(&self->deque, 9)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = 0;
-          char* allocated = deque_read_bytes(&data, &self->deque, 8);
-          if (data == NULL) {
-            return NULL;
-          }
-          A_QWORD qword;
-          qword.bytes[0] = data[7];
-          qword.bytes[1] = data[6];
-          qword.bytes[2] = data[5];
-          qword.bytes[3] = data[4];
-          qword.bytes[4] = data[3];
-          qword.bytes[5] = data[2];
-          qword.bytes[6] = data[1];
-          qword.bytes[7] = data[0];
-
-          parsed_object = next_byte == '\xcf'
-                              ? PyLong_FromUnsignedLongLong(qword.ull)
-                              : PyLong_FromLongLong(qword.ll);
-          if (parsed_object == NULL) {
-            return NULL;
-          }
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
-            deque_advance_first_bytes(&self->deque, 8);
-          }
-          break;
-        }
-        return NULL;
-      }
-      case '\xca': {  // float (float_32)
-
-        if (deque_has_n_next_byte(&self->deque, 5)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = 0;
-          char* allocated = deque_read_bytes(&data, &self->deque, 4);
-          if (data == NULL) {
-            return NULL;
-          }
-          A_DWORD dword;
-          dword.bytes[0] = data[3];
-          dword.bytes[1] = data[2];
-          dword.bytes[2] = data[1];
-          dword.bytes[3] = data[0];
-
-          parsed_object = PyFloat_FromDouble((double)dword.f);
-          if (parsed_object == NULL) {
-            return NULL;
-          }
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
-            deque_advance_first_bytes(&self->deque, 4);
-          }
-          break;
-        }
-        return NULL;
-      }
-      case '\xcb': {  // double (float_64)
-        if (deque_has_n_next_byte(&self->deque, 9)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = 0;
-          char* allocated = deque_read_bytes(&data, &self->deque, 8);
-          if (data == NULL) {
-            return NULL;
-          }
-          A_QWORD qword;
-          qword.bytes[0] = data[7];
-          qword.bytes[1] = data[6];
-          qword.bytes[2] = data[5];
-          qword.bytes[3] = data[4];
-          qword.bytes[4] = data[3];
-          qword.bytes[5] = data[2];
-          qword.bytes[6] = data[1];
-          qword.bytes[7] = data[0];
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
-            deque_advance_first_bytes(&self->deque, 8);
-          }
-          parsed_object = PyFloat_FromDouble(qword.d);
           if (parsed_object == NULL) {
             return NULL;
           }
           break;
         }
-        return NULL;
       }
-      case '\xd4':  // fixext 1
-      case '\xd5':  // fixext 2
-      case '\xd6':  // fixext 4
-      case '\xd7':  // fixext 8
-      case '\xd8':  // fixext 16
-      {
-        Py_ssize_t const data_length = 1 << (next_byte - '\xd4');
-        if (deque_has_n_next_byte(&self->deque, 2 + data_length)) {
-          deque_advance_first_bytes(&self->deque, 1);
+      return NULL;
+    }
+    case '\xc7':  // ext 8
+    case '\xc8':  // ext 16
+    case '\xc9':  // ext 32
+    {
+      unsigned char const size_size = 1 << (next_byte - '\xc7');
+      if (deque_has_n_next_byte(&self->deque, 1 + size_size + 1)) {
+        Py_ssize_t const data_length = deque_peek_size(&self->deque, size_size);
+        if (data_length >= MiB128) {
+          return NULL;
+        }
+        if (deque_has_n_next_byte(&self->deque,
+                                  1 + size_size + 1 + data_length)) {
+          deque_advance_first_bytes(&self->deque, 1 + size_size);
           char const* data = 0;
           char* allocated =
               deque_read_bytes(&data, &self->deque, data_length + 1);
@@ -691,7 +478,8 @@ parse_next:
             return NULL;
           }
           char const code = data[0];
-          if (code == -1 && (data_length == 8 || data_length == 4)) {
+          if (code == -1 &&
+              (data_length == 8 || data_length == 4 || data_length == 12)) {
             parsed_object = ext_to_timestamp(data + 1, data_length);
             if (parsed_object == NULL) {
               return NULL;  // likely overflow error
@@ -703,6 +491,9 @@ parse_next:
             }
             ext->code = code;
             ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
+            if (ext->data == NULL) {
+              return NULL;
+            }
             parsed_object = (PyObject*)ext;
           }
           if (allocated) {
@@ -712,186 +503,388 @@ parse_next:
           }
           break;
         }
-        return NULL;
       }
-      case '\xd9':  // str 8
-      case '\xda':  // str 16
-      case '\xdb':  // str 32
-      {
-        unsigned char const size_size = 1 << (next_byte - '\xd9');
-        if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
-          Py_ssize_t length = deque_peek_size(&self->deque, size_size);
-          if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
-            deque_advance_first_bytes(&self->deque, 1 + size_size);
-            if (length == 0) {
-              parsed_object = PyUnicode_FromStringAndSize(NULL, length);
-            } else {
-              if (length > MiB128) {
-                return size_error("string", length, MiB128);
-              }
-              char const* data = 0;
-              char* allocated = deque_read_bytes(&data, &self->deque, length);
-              if (data == NULL) {
-                return NULL;
-              }
-              parsed_object = PyUnicode_FromStringAndSize(data, length);
-              if (allocated) {
-                PyMem_Free(allocated);
-              } else {
-                deque_advance_first_bytes(&self->deque, length);
-              }
-            }
-            if (parsed_object == NULL) {
-              return NULL;
-            }
-            break;
-          }
-        }
-        return NULL;
-      }
-      case '\xdc':    // array 16
-      case '\xdd': {  // array 32
-        Py_ssize_t length;
-        if (next_byte == '\xdc') {  // array 16
-          if (deque_has_n_next_byte(&self->deque, 3)) {
-            deque_advance_first_bytes(&self->deque, 1);
-            char const* data = 0;
-            char* allocated = deque_read_bytes(&data, &self->deque, 2);
-            if (data == NULL) {
-              return NULL;
-            }
-            A_WORD word;
-            word.bytes[0] = data[1];
-            word.bytes[1] = data[0];
-            length = word.us;
-
-            if (allocated) {
-              PyMem_Free(allocated);
-            } else {
-              deque_advance_first_bytes(&self->deque, 2);
-            }
-          } else {
-            return NULL;
-          }
-        } else {  // array 32
-          if (deque_has_n_next_byte(&self->deque, 5)) {
-            deque_advance_first_bytes(&self->deque, 1);
-            char const* data = 0;
-            char* allocated = deque_read_bytes(&data, &self->deque, 4);
-            if (data == NULL) {
-              return NULL;
-            }
-            A_DWORD word;
-            word.bytes[0] = data[3];
-            word.bytes[1] = data[2];
-            word.bytes[2] = data[1];
-            word.bytes[3] = data[0];
-            length = word.ul;
-
-            if (allocated) {
-              PyMem_Free(allocated);
-            } else {
-              deque_advance_first_bytes(&self->deque, 4);
-            }
-          } else {
-            return NULL;
-          }
-        }
-        if (length > 10000000) {
-          return size_error("list", length, 10000000);
-        }
-        if (can_not_append_stack(&self->parser)) {
-          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-          return NULL;
-        }
-        parsed_object =
-            (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
+      return NULL;
+    }
+    case '\xd0':    // int_8
+    case '\xcc': {  // uint_8
+      if (deque_has_n_next_byte(&self->deque, 2)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const byte = deque_peek_byte(&self->deque);
+        parsed_object = next_byte == '\xcc'
+                            ? PyLong_FromLong((long)(unsigned char)byte)
+                            : PyLong_FromLong((long)byte);
         if (parsed_object == NULL) {
           return NULL;
         }
-        if (length == 0) {
-          break;
-        }
-        Stack const item = {.action = SEQUENCE_APPEND,
-                            .sequence = parsed_object,
-                            .size = length,
-                            .pos = 0};
-        self->parser.stack[self->parser.stack_length++] = item;
-        goto parse_next;
+        deque_advance_first_bytes(&self->deque, 1);
+        break;
       }
-      case '\xde':    // map 16
-      case '\xdf': {  // map 32
-        Py_ssize_t length;
-        if (next_byte == '\xde') {
-          if (deque_has_n_next_byte(&self->deque, 3)) {
-            deque_advance_first_bytes(&self->deque, 1);
-            char const* data = 0;
-            char* allocated = deque_read_bytes(&data, &self->deque, 2);
-            if (data == NULL) {
-              return NULL;
-            }
-            A_WORD word;
-            word.bytes[0] = data[1];
-            word.bytes[1] = data[0];
-            length = word.us;
-
-            if (allocated) {
-              PyMem_Free(allocated);
-            } else {
-              deque_advance_first_bytes(&self->deque, 2);
-            }
-          } else {
-            return NULL;
-          }
-        } else {
-          if (deque_has_n_next_byte(&self->deque, 5)) {
-            deque_advance_first_bytes(&self->deque, 1);
-            char const* data = 0;
-            char* allocated = deque_read_bytes(&data, &self->deque, 4);
-            if (data == NULL) {
-              return NULL;
-            }
-            A_DWORD word;
-            word.bytes[0] = data[3];
-            word.bytes[1] = data[2];
-            word.bytes[2] = data[1];
-            word.bytes[3] = data[0];
-            length = word.ul;
-
-            if (allocated) {
-              PyMem_Free(allocated);
-            } else {
-              deque_advance_first_bytes(&self->deque, 4);
-            }
-          } else {
-            return NULL;
-          }
-        }
-        if (length > 100000) {
-          return size_error("dict", length, 100000);
-        }
-        if (can_not_append_stack(&self->parser)) {
-          PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+      return NULL;
+    }
+    case '\xd1':    // int_16
+    case '\xcd': {  // uint_16
+      if (deque_has_n_next_byte(&self->deque, 3)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = 0;
+        char* allocated = deque_read_bytes(&data, &self->deque, 2);
+        if (data == NULL) {
           return NULL;
         }
-        parsed_object = PyDict_New();
-        if (length == 0) {
+        A_WORD word;
+        word.bytes[0] = data[1];
+        word.bytes[1] = data[0];
+
+        parsed_object = next_byte == '\xcd' ? PyLong_FromLong((long)word.us)
+                                            : PyLong_FromLong((long)word.s);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
+        if (allocated) {
+          PyMem_Free(allocated);
+        } else {
+          deque_advance_first_bytes(&self->deque, 2);
+        }
+        break;
+      }
+      return NULL;
+    }
+    case '\xd2':    // int_32
+    case '\xce': {  // uint_32
+      if (deque_has_n_next_byte(&self->deque, 5)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = 0;
+        char* allocated = deque_read_bytes(&data, &self->deque, 4);
+        if (data == NULL) {
+          return NULL;
+        }
+        A_DWORD dword;
+        dword.bytes[0] = data[3];
+        dword.bytes[1] = data[2];
+        dword.bytes[2] = data[1];
+        dword.bytes[3] = data[0];
+
+        parsed_object = next_byte == '\xce' ? PyLong_FromUnsignedLong(dword.ul)
+                                            : PyLong_FromLong(dword.l);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
+        if (allocated) {
+          PyMem_Free(allocated);
+        } else {
+          deque_advance_first_bytes(&self->deque, 4);
+        }
+        break;
+      }
+      return NULL;
+    }
+    case '\xd3':    // int_64
+    case '\xcf': {  // uint_64
+      if (deque_has_n_next_byte(&self->deque, 9)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = 0;
+        char* allocated = deque_read_bytes(&data, &self->deque, 8);
+        if (data == NULL) {
+          return NULL;
+        }
+        A_QWORD qword;
+        qword.bytes[0] = data[7];
+        qword.bytes[1] = data[6];
+        qword.bytes[2] = data[5];
+        qword.bytes[3] = data[4];
+        qword.bytes[4] = data[3];
+        qword.bytes[5] = data[2];
+        qword.bytes[6] = data[1];
+        qword.bytes[7] = data[0];
+
+        parsed_object = next_byte == '\xcf'
+                            ? PyLong_FromUnsignedLongLong(qword.ull)
+                            : PyLong_FromLongLong(qword.ll);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
+        if (allocated) {
+          PyMem_Free(allocated);
+        } else {
+          deque_advance_first_bytes(&self->deque, 8);
+        }
+        break;
+      }
+      return NULL;
+    }
+    case '\xca': {  // float (float_32)
+
+      if (deque_has_n_next_byte(&self->deque, 5)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = 0;
+        char* allocated = deque_read_bytes(&data, &self->deque, 4);
+        if (data == NULL) {
+          return NULL;
+        }
+        A_DWORD dword;
+        dword.bytes[0] = data[3];
+        dword.bytes[1] = data[2];
+        dword.bytes[2] = data[1];
+        dword.bytes[3] = data[0];
+
+        parsed_object = PyFloat_FromDouble((double)dword.f);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
+        if (allocated) {
+          PyMem_Free(allocated);
+        } else {
+          deque_advance_first_bytes(&self->deque, 4);
+        }
+        break;
+      }
+      return NULL;
+    }
+    case '\xcb': {  // double (float_64)
+      if (deque_has_n_next_byte(&self->deque, 9)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = 0;
+        char* allocated = deque_read_bytes(&data, &self->deque, 8);
+        if (data == NULL) {
+          return NULL;
+        }
+        A_QWORD qword;
+        qword.bytes[0] = data[7];
+        qword.bytes[1] = data[6];
+        qword.bytes[2] = data[5];
+        qword.bytes[3] = data[4];
+        qword.bytes[4] = data[3];
+        qword.bytes[5] = data[2];
+        qword.bytes[6] = data[1];
+        qword.bytes[7] = data[0];
+        if (allocated) {
+          PyMem_Free(allocated);
+        } else {
+          deque_advance_first_bytes(&self->deque, 8);
+        }
+        parsed_object = PyFloat_FromDouble(qword.d);
+        if (parsed_object == NULL) {
+          return NULL;
+        }
+        break;
+      }
+      return NULL;
+    }
+    case '\xd4':  // fixext 1
+    case '\xd5':  // fixext 2
+    case '\xd6':  // fixext 4
+    case '\xd7':  // fixext 8
+    case '\xd8':  // fixext 16
+    {
+      Py_ssize_t const data_length = 1 << (next_byte - '\xd4');
+      if (deque_has_n_next_byte(&self->deque, 2 + data_length)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = 0;
+        char* allocated =
+            deque_read_bytes(&data, &self->deque, data_length + 1);
+        if (data == NULL) {
+          return NULL;
+        }
+        char const code = data[0];
+        if (code == -1 && (data_length == 8 || data_length == 4)) {
+          parsed_object = ext_to_timestamp(data + 1, data_length);
+          if (parsed_object == NULL) {
+            return NULL;  // likely overflow error
+          }
+        } else {
+          Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
+          if (ext == NULL) {
+            return NULL;  // Allocation failed
+          }
+          ext->code = code;
+          ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
+          parsed_object = (PyObject*)ext;
+        }
+        if (allocated) {
+          PyMem_Free(allocated);
+        } else {
+          deque_advance_first_bytes(&self->deque, data_length + 1);
+        }
+        break;
+      }
+      return NULL;
+    }
+    case '\xd9':  // str 8
+    case '\xda':  // str 16
+    case '\xdb':  // str 32
+    {
+      unsigned char const size_size = 1 << (next_byte - '\xd9');
+      if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
+        Py_ssize_t length = deque_peek_size(&self->deque, size_size);
+        if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
+          deque_advance_first_bytes(&self->deque, 1 + size_size);
+          if (length == 0) {
+            parsed_object = PyUnicode_FromStringAndSize(NULL, length);
+          } else {
+            if (length > MiB128) {
+              return size_error("string", length, MiB128);
+            }
+            char const* data = 0;
+            char* allocated = deque_read_bytes(&data, &self->deque, length);
+            if (data == NULL) {
+              return NULL;
+            }
+            parsed_object = PyUnicode_FromStringAndSize(data, length);
+            if (allocated) {
+              PyMem_Free(allocated);
+            } else {
+              deque_advance_first_bytes(&self->deque, length);
+            }
+          }
+          if (parsed_object == NULL) {
+            return NULL;
+          }
           break;
         }
-        Stack const item = {.action = DICT_KEY,
-                            .sequence = parsed_object,
-                            .size = length,
-                            .pos = 0};
-        self->parser.stack[self->parser.stack_length++] = item;
-        goto parse_next;
       }
-      default: {
-        assert(0);
-      }
+      return NULL;
     }
-  } else {
-    deque_advance_first_bytes(&self->deque, 1);
-    Py_INCREF(parsed_object);
+    case '\xdc':    // array 16
+    case '\xdd': {  // array 32
+      Py_ssize_t length;
+      if (next_byte == '\xdc') {  // array 16
+        if (deque_has_n_next_byte(&self->deque, 3)) {
+          deque_advance_first_bytes(&self->deque, 1);
+          char const* data = 0;
+          char* allocated = deque_read_bytes(&data, &self->deque, 2);
+          if (data == NULL) {
+            return NULL;
+          }
+          A_WORD word;
+          word.bytes[0] = data[1];
+          word.bytes[1] = data[0];
+          length = word.us;
+
+          if (allocated) {
+            PyMem_Free(allocated);
+          } else {
+            deque_advance_first_bytes(&self->deque, 2);
+          }
+        } else {
+          return NULL;
+        }
+      } else {  // array 32
+        if (deque_has_n_next_byte(&self->deque, 5)) {
+          deque_advance_first_bytes(&self->deque, 1);
+          char const* data = 0;
+          char* allocated = deque_read_bytes(&data, &self->deque, 4);
+          if (data == NULL) {
+            return NULL;
+          }
+          A_DWORD word;
+          word.bytes[0] = data[3];
+          word.bytes[1] = data[2];
+          word.bytes[2] = data[1];
+          word.bytes[3] = data[0];
+          length = word.ul;
+
+          if (allocated) {
+            PyMem_Free(allocated);
+          } else {
+            deque_advance_first_bytes(&self->deque, 4);
+          }
+        } else {
+          return NULL;
+        }
+      }
+      if (length > 10000000) {
+        return size_error("list", length, 10000000);
+      }
+      if (can_not_append_stack(&self->parser)) {
+        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+        return NULL;
+      }
+      parsed_object = (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
+      if (parsed_object == NULL) {
+        return NULL;
+      }
+      if (length == 0) {
+        break;
+      }
+      Stack const item = {.action = SEQUENCE_APPEND,
+                          .sequence = parsed_object,
+                          .size = length,
+                          .pos = 0};
+      self->parser.stack[self->parser.stack_length++] = item;
+      goto parse_next;
+    }
+    case '\xde':    // map 16
+    case '\xdf': {  // map 32
+      Py_ssize_t length;
+      if (next_byte == '\xde') {
+        if (deque_has_n_next_byte(&self->deque, 3)) {
+          deque_advance_first_bytes(&self->deque, 1);
+          char const* data = 0;
+          char* allocated = deque_read_bytes(&data, &self->deque, 2);
+          if (data == NULL) {
+            return NULL;
+          }
+          A_WORD word;
+          word.bytes[0] = data[1];
+          word.bytes[1] = data[0];
+          length = word.us;
+
+          if (allocated) {
+            PyMem_Free(allocated);
+          } else {
+            deque_advance_first_bytes(&self->deque, 2);
+          }
+        } else {
+          return NULL;
+        }
+      } else {
+        if (deque_has_n_next_byte(&self->deque, 5)) {
+          deque_advance_first_bytes(&self->deque, 1);
+          char const* data = 0;
+          char* allocated = deque_read_bytes(&data, &self->deque, 4);
+          if (data == NULL) {
+            return NULL;
+          }
+          A_DWORD word;
+          word.bytes[0] = data[3];
+          word.bytes[1] = data[2];
+          word.bytes[2] = data[1];
+          word.bytes[3] = data[0];
+          length = word.ul;
+
+          if (allocated) {
+            PyMem_Free(allocated);
+          } else {
+            deque_advance_first_bytes(&self->deque, 4);
+          }
+        } else {
+          return NULL;
+        }
+      }
+      if (length > 100000) {
+        return size_error("dict", length, 100000);
+      }
+      if (can_not_append_stack(&self->parser)) {
+        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+        return NULL;
+      }
+      parsed_object = PyDict_New();
+      if (length == 0) {
+        break;
+      }
+      Stack const item = {.action = DICT_KEY,
+                          .sequence = parsed_object,
+                          .size = length,
+                          .pos = 0};
+      self->parser.stack[self->parser.stack_length++] = item;
+      goto parse_next;
+    }
+    default: {
+      parsed_object = msgpack_byte_object[(unsigned char)next_byte];
+      assert(parsed_object != NULL);
+      deque_advance_first_bytes(&self->deque, 1);
+      Py_INCREF(parsed_object);
+    }
   }
   while (self->parser.stack_length > 0) {
     Stack* item = &self->parser.stack[self->parser.stack_length - 1];
