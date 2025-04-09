@@ -135,6 +135,7 @@ PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
     return NULL;
   }
   self->read_callback = read_callback;
+  Py_XINCREF(read_size);
   self->read_size = read_size;
   return (PyObject*)self;
 }
