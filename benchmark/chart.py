@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import json
 import matplotlib.pyplot as plt
 import numpy as np
@@ -74,4 +75,4 @@ ax2.set_ylabel("GiB / Second")
 ax2.set_xticks(x + width, sorted(file_names))
 ax2.legend(loc="upper left", ncols=1)
 
-plt.savefig("benchmark-0.0.5.svg")
+plt.savefig("benchmark-0.0.7.svg")
