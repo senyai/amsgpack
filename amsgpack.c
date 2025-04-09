@@ -804,7 +804,8 @@ parse_next:
           PyErr_SetString(PyExc_ValueError, "Deeply nested object");
           return NULL;
         }
-        parsed_object = PyList_New(length);
+        parsed_object =
+            (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
         if (parsed_object == NULL) {
           return NULL;
         }
