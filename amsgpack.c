@@ -1006,7 +1006,9 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
     return NULL;
   }
   // 3. Push bytes to the deque
-  if (deque_append(&self->unpacker.deque, bytes) != 0) {
+  int const append_result = deque_append(&self->unpacker.deque, bytes);
+  Py_DECREF(bytes);
+  if (append_result != 0) {
     return NULL;
   }
 
