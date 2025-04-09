@@ -84,5 +84,6 @@ if __name__ == "__main__":
             sys.argv[0],
             # "--benchmark_format=json",
             "--benchmark_out=msgpack_benchmark.json",
+            "--benchmark_repetitions=5",
         ]
     )
