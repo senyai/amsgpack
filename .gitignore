@@ -3,3 +3,6 @@
 *.egg-info
 *.so
 __pycache__
+# benchmark data
+*.mpack
+msgpack_benchmark.json
