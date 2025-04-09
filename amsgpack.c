@@ -345,7 +345,7 @@ parse_next:
         }
         Py_ssize_t const length = next_byte & 0x0f;
         parsed_object =
-            self->use_tuple == 0 ? PyList_New(length) : PyTuple_New(length);
+            (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
         if (parsed_object == NULL) {
           return NULL;
         }
