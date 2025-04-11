@@ -74,38 +74,49 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
   } else if (PyLong_CheckExact(obj)) {
     // https://docs.python.org/3/c-api/long.html
     long const value = PyLong_AsLong(obj);
-    if (-0x20 <= value && value < 0x80) {
-      AMSGPACK_RESIZE(1);
-      data[0] = (char)value;
-    } else if (0x80 <= value && value <= UCHAR_MAX) {
-      AMSGPACK_RESIZE(2);
-      put2(data, '\xcc', (char)value);
-    } else if (SCHAR_MIN <= value && value < 0) {
-      AMSGPACK_RESIZE(2);
-      put2(data, '\xd0', (char)value);
-    } else if (UCHAR_MAX < value && value <= 0xffff) {
-      AMSGPACK_RESIZE(3);
-      put3(data, '\xcd', value);
-    } else if (SHRT_MIN <= value && value < -0x80) {
-      AMSGPACK_RESIZE(3);
-      put3(data, '\xd1', (unsigned short)value);
-    } else if (0xffff < value && value <= 0xffffffff) {
-      AMSGPACK_RESIZE(5);
-
-      put5(data, '\xce', value);
-    } else if (-0x7fffffff <= value && value < -0x8000) {
-      AMSGPACK_RESIZE(5);
-      put5(data, '\xd2', (unsigned int)value);
-    } else if (0xffffffff < value /*&& value <= 0xffffffffffffffff*/) {
-      AMSGPACK_RESIZE(9);
-      put9(data, '\xcf', value);
-    } else if (/*-0x8000000000000000 <= value &&*/ value < -0x80000000LL) {
-      AMSGPACK_RESIZE(9);
-      put9(data, '\xd3', value);
-    } else {
-      PyErr_SetString(PyExc_ValueError,
-                      "Integral value is out of MessagePack range");
+    if (value == -1 && PyErr_Occurred() != NULL) {
       return -1;
+    }
+    if (value >= -0x20) {
+      if (value < 0x80) {
+        // fixint
+        AMSGPACK_RESIZE(1);
+        data[0] = (char)value;
+      } else if (value <= 0xff) {
+        // uint 8
+        AMSGPACK_RESIZE(2);
+        put2(data, '\xcc', (char)value);
+      } else if (value <= 0xffff) {
+        // unit 16
+        AMSGPACK_RESIZE(3);
+        put3(data, '\xcd', value);
+      } else if (value <= 0xffffffff) {
+        // unit 32
+        AMSGPACK_RESIZE(5);
+        put5(data, '\xce', value);
+      } else {
+        // uint 64
+        AMSGPACK_RESIZE(9);
+        put9(data, '\xcf', value);
+      }
+    } else {
+      if (value >= -0x80) {
+        // int 8
+        AMSGPACK_RESIZE(2);
+        put2(data, '\xd0', (char)value);
+      } else if (value >= -0x8000) {
+        // int 16
+        AMSGPACK_RESIZE(3);
+        put3(data, '\xd1', (unsigned short)value);
+      } else if (value >= -0x80000000LL) {
+        // int 32
+        AMSGPACK_RESIZE(5);
+        put5(data, '\xd2', (unsigned int)value);
+      } else {
+        // int 64
+        AMSGPACK_RESIZE(9);
+        put9(data, '\xd3', value);
+      }
     }
   } else if (obj == Py_None) {
     AMSGPACK_RESIZE(1);
