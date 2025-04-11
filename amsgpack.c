@@ -890,12 +890,11 @@ parse_next:
     Stack* item = &self->parser.stack[self->parser.stack_length - 1];
     switch (item->action) {
       case SEQUENCE_APPEND:
-        if (item->pos < item->size) {
-          self->use_tuple == 0
-              ? PyList_SET_ITEM(item->sequence, item->pos, parsed_object)
-              : PyTuple_SET_ITEM(item->sequence, item->pos, parsed_object);
-          item->pos += 1;
-        }
+        assert(item->pos < item->size);
+        self->use_tuple == 0
+            ? PyList_SET_ITEM(item->sequence, item->pos, parsed_object)
+            : PyTuple_SET_ITEM(item->sequence, item->pos, parsed_object);
+        item->pos += 1;
         if (item->pos == item->size) {
           parsed_object = item->sequence;
           memset(item, 0, sizeof(Stack));
@@ -911,18 +910,17 @@ parse_next:
         item->key = parsed_object;
         goto parse_next;
       case DICT_VALUE: {
-        if (item->pos < item->size) {
-          int const set_item_result =
-              PyDict_SetItem(item->sequence, item->key, parsed_object);
-          Py_DECREF(item->key);
-          Py_DECREF(parsed_object);
-          if (set_item_result != 0) {
-            return NULL;
-          }
-          item->action = DICT_KEY;
-          item->pos += 1;
-          item->key = NULL;
+        assert(item->pos < item->size);
+        int const set_item_result =
+            PyDict_SetItem(item->sequence, item->key, parsed_object);
+        Py_DECREF(item->key);
+        Py_DECREF(parsed_object);
+        if (set_item_result != 0) {
+          return NULL;
         }
+        item->action = DICT_KEY;
+        item->pos += 1;
+        item->key = NULL;
         if (item->pos == item->size) {
           parsed_object = item->sequence;
           memset(item, 0, sizeof(Stack));
