@@ -16,7 +16,77 @@ Value = (
 )
 
 
-class PackbTest(TestCase):
+class SequenceTestCase(TestCase):
+    def safeSequenceEqual(
+        self, unpacker: Unpacker, ref: tuple[Value, ...]
+    ) -> None:
+        it = iter(unpacker)
+        self.assertIs(it, unpacker)
+        for idx, item in enumerate(ref):
+            self.assertEqual(next(it), item, f"{idx=}")
+        with self.assertRaises(StopIteration):
+            next(it)
+
+
+class PackbIntTest(SequenceTestCase):
+    def test_out_of_range(self):
+        with self.assertRaises(OverflowError) as context:
+            packb(0x1_FFFF_FFFFF_FFFF_FFFF)
+        self.assertEqual(
+            str(context.exception), "Python int too large to convert to C long"
+        )
+
+    def test_i8(self):
+        for ref in range(-0x80, -0x20):
+            exp = packb(ref)
+            self.assertEqual(exp, b"\xd0" + bytes((ref + 0x100,)))
+            self.assertEqual(unpackb(exp), ref)
+
+    def test_i16(self):
+        ref = -0x8000
+        exp = packb(ref)
+        self.assertEqual(exp, b"\xd1\x80\x00")
+        self.assertEqual(unpackb(exp), ref)
+
+    def test_i32(self):
+        ref = -0x8000_0000
+        exp = packb(ref)
+        self.assertEqual(exp, b"\xd2\x80\x00\x00\x00")
+        self.assertEqual(unpackb(exp), ref)
+
+    def test_i64(self):
+        ref = -0x8000_0000_0000_0000
+        exp = packb(ref)
+        self.assertEqual(exp, b"\xd3\x80\x00\x00\x00\x00\x00\x00\x00")
+        self.assertEqual(unpackb(exp), ref)
+
+    def test_uint_8(self):
+        for ref in range(0x80, 0x100):
+            exp = packb(ref)
+            self.assertEqual(exp, b"\xcc" + bytes((ref,)))
+
+    def test_uint_16(self):
+        u = Unpacker()
+        for char in b"\xcd\x00\x00\xcd\x00\xff\xcd\x01\x00\xcd\xff\xff":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF))
+
+    def test_uint_32(self):
+        u = Unpacker()
+        for (
+            char
+        ) in b"\xce\x00\x00\x00\x00\xce\x00\x00\x00\xff\xce\x00\x00\x01\x00\xce\x00\x00\xff\xff\xce\xff\xff\xff\xff":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF, 0xFFFFFFFF))
+
+    def test_uint64(self):
+        ref = 0x7FFF_FFFF_FFFF_FFFF
+        exp = packb(ref)
+        self.assertEqual(exp, b"\xcf\x7f\xff\xff\xff\xff\xff\xff\xff")
+        self.assertEqual(unpackb(exp), ref)
+
+
+class PackbTest(SequenceTestCase):
     def test_true(self):
         self.assertEqual(packb(True), b"\xc3")
 
@@ -28,22 +98,6 @@ class PackbTest(TestCase):
 
     def test_double(self):
         self.assertEqual(packb(pi), b"\xcb@\t!\xfbTD-\x18")
-
-    def test_i8(self):
-        for i in range(-127, 128):
-            self.assertEqual(unpackb(packb(i)), i)
-
-    def test_i16(self):
-        for i in (-0x7FFF, 0x1234, 0x8000):
-            self.assertEqual(unpackb(packb(i)), i)
-
-    def test_i32(self):
-        for i in (-0x7FFF_0000, 0x1000_0000):
-            self.assertEqual(unpackb(packb(i)), i)
-
-    def test_i64(self):
-        for i in (-0x7FFF_0000_0000_0000, 0x1000_0000_0000_0000):
-            self.assertEqual(unpackb(packb(i)), i)
 
     def test_ascii(self):
         ascii = "".join(chr(i) for i in range(128))
@@ -77,6 +131,10 @@ class PackbTest(TestCase):
     def test_list_0x10000(self):
         value = [True] * 0x10000
         self.assertEqual(unpackb(packb(value)), value)
+
+    def test_pack_empty_map(self):
+        self.assertEqual(packb({}), b"\x80")
+        self.assertEqual(unpackb(b"\x80"), {})
 
     def test_dict_0_to_20_el(self):
         for n in range(21):
@@ -145,7 +203,7 @@ class PackbTest(TestCase):
         )
 
 
-class UnpackerTest(TestCase):
+class UnpackerTest(SequenceTestCase):
     def test_unpacker_gets_no_argumens(self):
         with self.assertRaises(TypeError) as context:
             Unpacker("what", "is", "that")
@@ -276,26 +334,6 @@ class UnpackerTest(TestCase):
         ref = tuple([b"A" * i for i in range(65536, 65538)])
         self.safeSequenceEqual(u, ref)
 
-    def test_uint_8(self):
-        u = Unpacker()
-        for char in b"\xcc\x00\xcc\x7f\xcc\x80\xcc\xff":
-            u.feed(bytes((char,)))
-        self.safeSequenceEqual(u, (0, 127, 128, 255))
-
-    def test_uint_16(self):
-        u = Unpacker()
-        for char in b"\xcd\x00\x00\xcd\x00\xff\xcd\x01\x00\xcd\xff\xff":
-            u.feed(bytes((char,)))
-        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF))
-
-    def test_uint_32(self):
-        u = Unpacker()
-        for (
-            char
-        ) in b"\xce\x00\x00\x00\x00\xce\x00\x00\x00\xff\xce\x00\x00\x01\x00\xce\x00\x00\xff\xff\xce\xff\xff\xff\xff":
-            u.feed(bytes((char,)))
-        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF, 0xFFFFFFFF))
-
     def test_ext_4(self):
         ext = Ext(1, b"1234")
         ref_bytes = packb(ext)
@@ -308,16 +346,6 @@ class UnpackerTest(TestCase):
     def test_dict_with_array_value(self):
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
-
-    def safeSequenceEqual(
-        self, unpacker: Unpacker, ref: tuple[Value, ...]
-    ) -> None:
-        it = iter(unpacker)
-        self.assertIs(it, unpacker)
-        for idx, item in enumerate(ref):
-            self.assertEqual(next(it), item, f"{idx=}")
-        with self.assertRaises(StopIteration):
-            next(it)
 
 
 class ExtTest(TestCase):
