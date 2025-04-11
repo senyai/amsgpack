@@ -35,7 +35,7 @@ static PyObject* msgpack_byte_object[256];
 static PyObject* epoch = NULL;
 
 typedef struct {
-  enum Action { SEQUENCE_APPEND, DICT_KEY, DICT_VALUE } action;
+  enum UnpackAction { SEQUENCE_APPEND, DICT_KEY, DICT_VALUE } action;
   PyObject* sequence;
   Py_ssize_t size;
   Py_ssize_t pos;

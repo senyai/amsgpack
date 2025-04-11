@@ -1,7 +1,7 @@
 #define AMSGPACK_RESIZE(n)                                \
   do {                                                    \
     if (PyByteArray_Resize(byte_array, pos + (n)) != 0) { \
-      return -1;                                          \
+      goto error;                                         \
     }                                                     \
     data = PyByteArray_AS_STRING(byte_array) + pos;       \
   } while (0)
@@ -49,16 +49,28 @@ static inline void put9_dbl(char* dst, char header, double value) {
   dst[8] = ((char*)&value)[0];
 }
 
+typedef struct {
+  enum PackAction { LIST_NEXT, TUPLE_NEXT, KEY_NEXT, VALUE_NEXT } action;
+  PyObject* sequence;
+  Py_ssize_t size;
+  Py_ssize_t pos;
+  PyObject* value;
+} PackbStack;
+
 // returns: -1 - failure
 //           0 - success
-static int packb_(PyObject* obj, PyObject* byte_array, int level) {
+static PyObject* packb(PyObject* _module, PyObject* obj) {
+  (void)_module;
+  PyObject* byte_array = PyByteArray_FromStringAndSize(NULL, 0);
+  if (byte_array == NULL) {
+    return NULL;
+  }
+  PackbStack stack[A_STACK_SIZE];
+  unsigned int stack_length = 0;
+pack_next:
   Py_ssize_t pos = PyByteArray_GET_SIZE(byte_array);
   char* data;
   unsigned int is_list = 1;
-  if (level >= A_STACK_SIZE) {
-    PyErr_SetString(PyExc_ValueError, "Object is too deep");
-    return -1;
-  }
   if (PyBool_Check(obj)) {
     AMSGPACK_RESIZE(1);
     if (obj == Py_True) {
@@ -75,7 +87,7 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     // https://docs.python.org/3/c-api/long.html
     long const value = PyLong_AsLong(obj);
     if (value == -1 && PyErr_Occurred() != NULL) {
-      return -1;
+      goto error;
     }
     if (value >= -0x20) {
       if (value < 0x80) {
@@ -129,64 +141,56 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
       AMSGPACK_RESIZE(1 + u8size);
       data[0] = 0xa0 + u8size;
       memcpy(data + 1, u8string, u8size);
-      return 0;
-    }
-    if (u8size <= 0xff) {
+    } else if (u8size <= 0xff) {
       AMSGPACK_RESIZE(2 + u8size);
       put2(data, '\xd9', (char)u8size);
       memcpy(data + 2, u8string, u8size);
-      return 0;
-    }
-    if (u8size <= 0xffff) {
+    } else if (u8size <= 0xffff) {
       AMSGPACK_RESIZE(3 + u8size);
       put3(data, '\xda', (unsigned short)u8size);
       memcpy(data + 3, u8string, u8size);
-      return 0;
-    }
-    if (u8size <= 0xffffffff) {
+    } else if (u8size <= 0xffffffff) {
       AMSGPACK_RESIZE(5 + u8size);
       put5(data, '\xdb', u8size);
       memcpy(data + 5, u8string, u8size);
-      return 0;
+    } else {
+      PyErr_SetString(PyExc_ValueError,
+                      "String length is out of MessagePack range");
+      goto error;
     }
-    PyErr_SetString(PyExc_ValueError,
-                    "String length is out of MessagePack range");
-    return -1;
   } else if (PyList_CheckExact(obj) ||
              (PyTuple_CheckExact(obj) && (is_list = 2))) {
     // https://docs.python.org/3.11/c-api/list.html
-    Py_ssize_t const list_size =
+    if (stack_length >= A_STACK_SIZE) {
+      PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+      goto error;
+    }
+    Py_ssize_t const length =
         (is_list == 1) ? PyList_GET_SIZE(obj) : PyTuple_GET_SIZE(obj);
-    if (list_size <= 15) {
+    if (length <= 0x0f) {
       AMSGPACK_RESIZE(1);
-      data[0] = '\x90' + (char)list_size;
-    } else if (list_size <= 0xffff) {
+      data[0] = '\x90' + (char)length;
+    } else if (length <= 0xffff) {
       AMSGPACK_RESIZE(3);
-      put3(data, '\xdc', (unsigned short)list_size);
-    } else if (list_size <= 0xffffffff) {
+      put3(data, '\xdc', (unsigned short)length);
+    } else if (length <= 0xffffffff) {
       AMSGPACK_RESIZE(5);
-      put5(data, '\xdd', (unsigned int)list_size);
+      put5(data, '\xdd', (unsigned int)length);
     } else {
       PyErr_SetString(PyExc_ValueError,
                       "List length is out of MessagePack range");
-      return -1;
+      goto error;
     }
-    if (is_list == 1)
-      for (Py_ssize_t i = 0; i < list_size; i++) {
-        PyObject* item = PyList_GET_ITEM(obj, i);
-        if (packb_(item, byte_array, level + 1) != 0) {
-          return -1;
-        }
-      }
-    else {
-      for (Py_ssize_t i = 0; i < list_size; i++) {
-        PyObject* item = PyTuple_GET_ITEM(obj, i);
-        if (packb_(item, byte_array, level + 1) != 0) {
-          return -1;
-        }
-      }
-    }
+    PackbStack const item = {.action = (is_list == 1 ? LIST_NEXT : TUPLE_NEXT),
+                             .sequence = obj,
+                             .size = length,
+                             .pos = 0};
+    stack[stack_length++] = item;
   } else if (PyDict_CheckExact(obj)) {
+    if (stack_length >= A_STACK_SIZE) {
+      PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+      goto error;
+    }
     // https://docs.python.org/3.11/c-api/dict.html
     Py_ssize_t const dict_size = PyDict_Size(obj);
 
@@ -202,24 +206,17 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     } else {
       PyErr_SetString(PyExc_ValueError,
                       "Dict length is out of MessagePack range");
-      return -1;
+      goto error;
     }
-    PyObject *key, *value;
-    Py_ssize_t dict_pos = 0;
-    while (PyDict_Next(obj, &dict_pos, &key, &value)) {
-      if (packb_(key, byte_array, level + 1) != 0) {
-        return -1;
-      }
-      if (packb_(value, byte_array, level + 1) != 0) {
-        return -1;
-      }
-    }
+    PackbStack const item = {
+        .action = KEY_NEXT, .sequence = obj, .size = dict_size, .pos = 0};
+    stack[stack_length++] = item;
   } else if (PyBytes_CheckExact(obj)) {
     // https://docs.python.org/3.11/c-api/bytes.html
     char* buffer;
     Py_ssize_t bytes_size;
     if (PyBytes_AsStringAndSize(obj, &buffer, &bytes_size) < 0) {
-      return -1;
+      goto error;
     }
     if (bytes_size <= 0xff) {
       AMSGPACK_RESIZE(2 + bytes_size);
@@ -236,7 +233,7 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
     } else {
       PyErr_SetString(PyExc_ValueError,
                       "Bytes length is out of MessagePack range");
-      return -1;
+      goto error;
     }
     memcpy(data + pos, buffer, bytes_size);
   } else if (Py_IS_TYPE(obj, &Ext_Type)) {
@@ -278,7 +275,7 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
           memcpy(data + 6, data_bytes, data_length);
         } else {
           PyErr_SetString(PyExc_TypeError, "Ext() length is too large");
-          return -1;
+          goto error;
         }
         break;
       non_default:
@@ -291,23 +288,49 @@ static int packb_(PyObject* obj, PyObject* byte_array, int level) {
                                                   Py_TYPE(obj)->tp_name);
     PyErr_SetObject(PyExc_TypeError, errorMessage);
     Py_XDECREF(errorMessage);
-    return -1;
-  }
-  return 0;
-}
-
-static PyObject* packb(PyObject* _module, PyObject* obj) {
-  (void)_module;
-  PyObject* byte_array = PyByteArray_FromStringAndSize(NULL, 0);
-  if (byte_array == NULL) {
-    return NULL;
+    goto error;
   }
 
-  if (packb_(obj, byte_array, 0) != 0) {
-    Py_DECREF(byte_array);
-    return NULL;
+  while (stack_length) {
+    PackbStack* item = &stack[stack_length - 1];
+    switch (item->action) {
+      case LIST_NEXT:
+        if (item->pos == item->size) {
+          stack_length -= 1;
+          break;
+        }
+        obj = PyList_GET_ITEM(item->sequence, item->pos);
+        item->pos += 1;
+        goto pack_next;
+      case TUPLE_NEXT:
+        if (item->pos == item->size) {
+          stack_length -= 1;
+          break;
+        }
+        obj = PyTuple_GET_ITEM(item->sequence, item->pos);
+        item->pos += 1;
+        goto pack_next;
+      case KEY_NEXT:
+        if (item->pos == item->size) {
+          stack_length -= 1;
+          break;
+        }
+        PyDict_Next(item->sequence, &item->pos, &obj, &item->value);
+        item->action = VALUE_NEXT;
+        goto pack_next;
+      case VALUE_NEXT:
+        item->action = KEY_NEXT;
+        obj = item->value;
+        goto pack_next;
+      default:
+        assert(0);
+    }
   }
+
   return byte_array;
+error:
+  Py_DECREF(byte_array);
+  return NULL;
 }
 
 #undef AMSGPACK_RESIZE
