@@ -897,7 +897,6 @@ parse_next:
         item->pos += 1;
         if (item->pos == item->size) {
           parsed_object = item->sequence;
-          memset(item, 0, sizeof(Stack));
           self->parser.stack_length -= 1;
         } else {
           goto parse_next;
@@ -920,10 +919,8 @@ parse_next:
         }
         item->action = DICT_KEY;
         item->pos += 1;
-        item->key = NULL;
         if (item->pos == item->size) {
           parsed_object = item->sequence;
-          memset(item, 0, sizeof(Stack));
           self->parser.stack_length -= 1;
         } else {
           goto parse_next;
