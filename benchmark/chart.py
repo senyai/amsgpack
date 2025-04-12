@@ -3,6 +3,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
+from amsgpack import __version__
 
 plt.rcParams["font.size"] = 16
 
@@ -40,6 +41,7 @@ colors = {
     "msgpack": "#8d3e88",
     "amsgpack": "#439987",
     "ormsgpack": "#f5557d",
+    # "umsgpack": "#aaaac0",
 }
 
 from pprint import pprint
@@ -75,4 +77,4 @@ ax2.set_ylabel("GiB / Second")
 ax2.set_xticks(x + width, sorted(file_names))
 ax2.legend(loc="upper left", ncols=1)
 
-plt.savefig("benchmark-0.0.7.svg")
+plt.savefig(f"benchmark-{__version__}.svg")
