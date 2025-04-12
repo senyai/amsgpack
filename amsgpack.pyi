@@ -1,6 +1,8 @@
-from typing import TypeAlias, Final, Protocol, overload
+from typing import TypeAlias, Final, Protocol
 from collections.abc import Sequence
 from datetime import datetime
+
+__version__: str
 
 class Ext:
     code: Final[int]
