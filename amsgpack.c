@@ -9,7 +9,8 @@
 #define VERSION "0.0.7"
 #define MiB128 134217728
 
-static PyObject* unpackb(PyObject* _module, PyObject* args, PyObject* kwargs);
+static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
+                         PyObject* restrict kwargs);
 
 PyDoc_STRVAR(amsgpack_packb_doc,
              "packb($module, obj, /)\n--\n\n"
@@ -1065,7 +1066,8 @@ error:
   return NULL;
 }
 
-static PyObject* unpackb(PyObject* _module, PyObject* args, PyObject* kwargs) {
+static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
+                         PyObject* restrict kwargs) {
   (void)_module;
   PyObject* obj = NULL;
   if (!PyArg_ParseTuple(args, "O:unpackb", &obj)) {
