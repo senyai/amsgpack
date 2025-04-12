@@ -70,20 +70,13 @@ static PyObject* packb(PyObject* _module, PyObject* obj) {
 pack_next:
   Py_ssize_t pos = PyByteArray_GET_SIZE(byte_array);
   char* data;
-  unsigned int is_list = 1;
-  if (PyBool_Check(obj)) {
-    AMSGPACK_RESIZE(1);
-    if (obj == Py_True) {
-      data[0] = '\xc3';
-    } else {
-      data[0] = '\xc2';
-    }
-  } else if (PyFloat_CheckExact(obj)) {
+  PyTypeObject const* obj_type = Py_TYPE(obj);
+  if (obj_type == &PyFloat_Type) {
     // https://docs.python.org/3/c-api/float.html
     AMSGPACK_RESIZE(9);
     double const value = PyFloat_AS_DOUBLE(obj);
     put9_dbl(data, '\xcb', value);
-  } else if (PyLong_CheckExact(obj)) {
+  } else if (obj_type == &PyLong_Type) {
     // https://docs.python.org/3/c-api/long.html
     long const value = PyLong_AsLong(obj);
     if (value == -1 && PyErr_Occurred() != NULL) {
@@ -130,13 +123,11 @@ pack_next:
         put9(data, '\xd3', value);
       }
     }
-  } else if (obj == Py_None) {
-    AMSGPACK_RESIZE(1);
-    data[0] = '\xc0';
-  } else if (PyUnicode_CheckExact(obj)) {
+  } else if (obj_type == &PyUnicode_Type) {
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size = 0;
     const char* u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
+    // ToDo: add error checking
     if (u8size <= 0xf) {
       AMSGPACK_RESIZE(1 + u8size);
       data[0] = 0xa0 + u8size;
@@ -158,15 +149,15 @@ pack_next:
                       "String length is out of MessagePack range");
       goto error;
     }
-  } else if (PyList_CheckExact(obj) ||
-             (PyTuple_CheckExact(obj) && (is_list = 2))) {
+  } else if (obj_type == &PyList_Type || obj_type == &PyTuple_Type) {
     // https://docs.python.org/3.11/c-api/list.html
     if (stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
     }
-    Py_ssize_t const length =
-        (is_list == 1) ? PyList_GET_SIZE(obj) : PyTuple_GET_SIZE(obj);
+    Py_ssize_t const length = (obj_type == &PyList_Type)
+                                  ? PyList_GET_SIZE(obj)
+                                  : PyTuple_GET_SIZE(obj);
     if (length <= 0x0f) {
       AMSGPACK_RESIZE(1);
       data[0] = '\x90' + (char)length;
@@ -181,12 +172,13 @@ pack_next:
                       "List length is out of MessagePack range");
       goto error;
     }
-    PackbStack const item = {.action = (is_list == 1 ? LIST_NEXT : TUPLE_NEXT),
-                             .sequence = obj,
-                             .size = length,
-                             .pos = 0};
+    PackbStack const item = {
+        .action = (obj_type == &PyList_Type ? LIST_NEXT : TUPLE_NEXT),
+        .sequence = obj,
+        .size = length,
+        .pos = 0};
     stack[stack_length++] = item;
-  } else if (PyDict_CheckExact(obj)) {
+  } else if (obj_type == &PyDict_Type) {
     if (stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
@@ -211,7 +203,7 @@ pack_next:
     PackbStack const item = {
         .action = KEY_NEXT, .sequence = obj, .size = dict_size, .pos = 0};
     stack[stack_length++] = item;
-  } else if (PyBytes_CheckExact(obj)) {
+  } else if (obj_type == &PyBytes_Type) {
     // https://docs.python.org/3.11/c-api/bytes.html
     char* buffer;
     Py_ssize_t bytes_size;
@@ -236,7 +228,13 @@ pack_next:
       goto error;
     }
     memcpy(data + pos, buffer, bytes_size);
-  } else if (Py_IS_TYPE(obj, &Ext_Type)) {
+  } else if (obj == Py_None) {
+    AMSGPACK_RESIZE(1);
+    data[0] = '\xc0';
+  } else if (obj_type == &PyBool_Type) {
+    AMSGPACK_RESIZE(1);
+    data[0] = obj == Py_True ? '\xc3' : '\xc2';
+  } else if (obj_type == &Ext_Type) {
     Ext* ext = (Ext*)obj;
     Py_ssize_t const data_length = PyBytes_GET_SIZE(ext->data);
     char const* data_bytes = PyBytes_AS_STRING(ext->data);
