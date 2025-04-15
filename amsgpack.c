@@ -407,7 +407,7 @@ parse_next:
         if (data == NULL) {
           return NULL;
         }
-        parsed_object = PyUnicode_FromStringAndSize(data, length);
+        parsed_object = PyUnicode_DecodeUTF8(data, length, NULL);
         if (allocated) {
           PyMem_Free(allocated);
         } else {
@@ -730,7 +730,7 @@ parse_next:
             if (data == NULL) {
               return NULL;
             }
-            parsed_object = PyUnicode_FromStringAndSize(data, length);
+            parsed_object = PyUnicode_DecodeUTF8(data, length, NULL);
             if (allocated) {
               PyMem_Free(allocated);
             } else {
