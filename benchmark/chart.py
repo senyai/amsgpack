@@ -42,13 +42,14 @@ colors = {
     "amsgpack": "#439987",
     "ormsgpack": "#f5557d",
     # "umsgpack": "#aaaac0",
+    "msgspec": "#fe8e61",
 }
 
 from pprint import pprint
 
 pprint(data)
 
-for module_name in ("msgpack", "ormsgpack", "amsgpack"):
+for module_name in ("msgpack", "ormsgpack", "msgspec", "amsgpack"):
     offset = width * multiplier
     color = colors[module_name]
 
@@ -70,11 +71,11 @@ for module_name in ("msgpack", "ormsgpack", "amsgpack"):
 ax1.set_title("$packb$ speed")
 ax1.set_ylabel("GiB / Second")
 ax1.set_xticks(x + width, sorted(file_names))
-ax1.legend(loc="upper left", ncols=1)
+ax1.legend(loc="upper left", ncols=2)
 
 ax2.set_title("$unpackb$ speed")
 ax2.set_ylabel("GiB / Second")
 ax2.set_xticks(x + width, sorted(file_names))
-ax2.legend(loc="upper left", ncols=1)
+ax2.legend(loc="upper left", ncols=2)
 
 plt.savefig(f"benchmark-{__version__}.svg")

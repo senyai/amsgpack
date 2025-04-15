@@ -3,6 +3,7 @@ from typing import Any, Callable
 from amsgpack import packb as amsgpack_packb, unpackb as amsgpack_unpackb
 from msgpack import packb as msgpack_packb, unpackb as msgpack_unpackb
 from ormsgpack import packb as ormsgpack_packb, unpackb as ormsgpack_unpackb
+from msgspec.msgpack import encode as msgspec_packb, decode as msgspec_unpackb
 
 import google_benchmark as benchmark
 
@@ -36,6 +37,7 @@ for filename in (
         validate(amsgpack_packb, amsgpack_unpackb, unpacked_data)
         validate(msgpack_packb, msgpack_unpackb, unpacked_data)
         validate(ormsgpack_packb, ormsgpack_unpackb, unpacked_data)
+        validate(msgspec_packb, msgspec_unpackb, unpacked_data)
 
 
 def pack_benchmark(state):
@@ -43,6 +45,7 @@ def pack_benchmark(state):
         ("amsgpack", amsgpack_packb),
         ("msgpack", msgpack_packb),
         ("ormsgpack", ormsgpack_packb),
+        ("msgspec", msgspec_packb),
     )[state.range(0)]
     file_label, _, obj = files[state.range(1)]
     state.set_label(f"{func_label}({file_label})")
@@ -58,6 +61,7 @@ def unpack_benchmark(state):
         ("amsgpack", amsgpack_unpackb),
         ("msgpack", msgpack_unpackb),
         ("ormsgpack", ormsgpack_unpackb),
+        ("msgspec", msgspec_unpackb),
     )[state.range(0)]
     file_label, bytes, _ = files[state.range(1)]
     state.set_label(f"{func_label}({file_label})")
@@ -67,7 +71,7 @@ def unpack_benchmark(state):
     state.bytes_processed = state.iterations * len(bytes)
 
 
-for i in reversed(range(3)):
+for i in reversed(range(4)):
     for j in reversed(range(4)):
         pack_benchmark = benchmark.option.args((i, j))(pack_benchmark)
         unpack_benchmark = benchmark.option.args((i, j))(unpack_benchmark)
