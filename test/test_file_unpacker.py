@@ -59,9 +59,12 @@ class FileUnpackerTest(TestCase):
     def test_pass_kwargs(self):
         with self.assertRaises(TypeError) as context:
             amsgpack.FileUnpacker(BadFileStr(), unicorn=True)
-        self.assertEqual(
+        self.assertIn(
             str(context.exception),
-            "'unicorn' is an invalid keyword argument for Unpacker()",
+            (
+                "'unicorn' is an invalid keyword argument for Unpacker()",
+                "Unpacker() got an unexpected keyword argument 'unicorn'",
+            ),
         )
 
     def test_no_arguments(self):
