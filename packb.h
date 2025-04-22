@@ -321,7 +321,7 @@ pack_next:
         obj = item->value;
         goto pack_next;
       default:
-        assert(0);
+        Py_UNREACHABLE();
     }
   }
 

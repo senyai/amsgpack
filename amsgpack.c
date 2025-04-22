@@ -263,7 +263,7 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
     seconds = timestamp96.seconds % (60 * 60 * 24);
     microseconds = timestamp96.nanosec / 1000;
   } else {
-    assert(0);  // programmer error
+    Py_UNREACHABLE();
   }
   PyObject* delta = PyDelta_FromDSU(days, seconds, microseconds);
 
@@ -929,7 +929,7 @@ parse_next:
         break;
       }
       default:
-        assert(0);
+        Py_UNREACHABLE();
     }
   }
   return parsed_object;
