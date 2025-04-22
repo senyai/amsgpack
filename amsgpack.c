@@ -34,6 +34,7 @@ static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
                                              .m_methods = AMsgPackMethods};
 
 static PyObject* msgpack_byte_object[256];
+#define EMPTY_TUPLE_IDX 0xc4
 static PyObject* epoch = NULL;
 
 typedef struct {
@@ -117,11 +118,11 @@ PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
   }
 
   PyObject* read_callback = PyObject_GetAttrString(file, "read");
-  if (read_callback == NULL) {
+  if A_UNLIKELY(read_callback == NULL) {
     return NULL;
   }
 
-  if (Py_TYPE(read_callback)->tp_call == NULL) {
+  if A_UNLIKELY(Py_TYPE(read_callback)->tp_call == NULL) {
     Py_DECREF(read_callback);
     PyObject* errorMessage = PyUnicode_FromFormat("`%s.read` must be callable",
                                                   Py_TYPE(file)->tp_name);
@@ -130,10 +131,9 @@ PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
     return NULL;
   }
 
-  PyObject* no_args = PyTuple_New(0);
+  PyObject* no_args = msgpack_byte_object[EMPTY_TUPLE_IDX];
   FileUnpacker* self = (FileUnpacker*)Unpacker_new(type, no_args, kwargs);
-  Py_DECREF(no_args);
-  if (self == NULL) {
+  if A_UNLIKELY(self == NULL) {
     return NULL;
   }
   self->read_callback = read_callback;
@@ -937,38 +937,22 @@ parse_next:
 // returns: -1 - failure
 //           0 - success
 static int init_msgpack_byte_object() {
-  int i = 0;
+  int i = -32;
   for (; i != 128; ++i) {
     PyObject* number = PyLong_FromLong(i);
     if (number == NULL) {
       return -1;
     }
-    msgpack_byte_object[i] = number;
+    msgpack_byte_object[(unsigned char)i] = number;
   }
-  for (; i != 128 + 16 + 16 + 32; ++i) {
-    msgpack_byte_object[i] = NULL;  // it must already be null
-  }
-  msgpack_byte_object[i++] = Py_None;
+  msgpack_byte_object[0xc0] = Py_None;
   Py_INCREF(Py_None);
-
-  msgpack_byte_object[i++] = NULL;
-
-  msgpack_byte_object[i++] = Py_False;  // False
+  msgpack_byte_object[0xc2] = Py_False;
   Py_INCREF(Py_False);
-  msgpack_byte_object[i++] = Py_True;  // True
+  msgpack_byte_object[0xc3] = Py_True;
   Py_INCREF(Py_True);
-
-  for (; i != 0xe0; ++i) {
-    msgpack_byte_object[i] = NULL;  // it must already be null
-  }
-
-  for (; i != 256; ++i) {
-    PyObject* number = PyLong_FromLong((char)i);
-    if (number == NULL) {
-      return -1;
-    }
-    msgpack_byte_object[i] = number;
-  }
+  msgpack_byte_object[EMPTY_TUPLE_IDX] = PyTuple_New(0);  // amsgpack specific
+  Py_INCREF(msgpack_byte_object[EMPTY_TUPLE_IDX]);
   return 0;
 }
 
@@ -1065,11 +1049,10 @@ error:
   return NULL;
 }
 
-static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
-                         PyObject* restrict kwargs) {
-  (void)_module;
+static PyObject* unpackb(PyObject* restrict Py_UNUSED(module),
+                         PyObject* restrict args, PyObject* restrict kwargs) {
   PyObject* obj = NULL;
-  if (!PyArg_ParseTuple(args, "O:unpackb", &obj)) {
+  if A_UNLIKELY(!PyArg_ParseTuple(args, "O:unpackb", &obj)) {
     return NULL;
   }
 
@@ -1084,16 +1067,15 @@ static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
   } else {
     Py_INCREF(obj);  // so we can safely decref it later in this function
   }
-  PyObject* no_args = PyTuple_New(0);
+  PyObject* no_args = msgpack_byte_object[EMPTY_TUPLE_IDX];
   Unpacker* unpacker = (Unpacker*)Unpacker_new(&Unpacker_Type, no_args, kwargs);
-  Py_DECREF(no_args);
-  if (unpacker == NULL) {
+  if A_UNLIKELY(unpacker == NULL) {
     Py_DECREF(obj);
     return NULL;
   }
   int const append_result = deque_append(&unpacker->deque, obj);
   Py_DECREF(obj);
-  if (append_result < 0) {
+  if A_UNLIKELY(append_result < 0) {
     return NULL;
   }
   PyObject* ret = Unpacker_iternext(unpacker);
