@@ -21,12 +21,6 @@ classifiers = [
 ]
 [project.urls]
 "Source" = "https://github.com/senyai/amsgpack"
-[[tool.setuptools.ext-modules]]
-name = "amsgpack"
-sources = ["amsgpack.c"]
-include-dirs = ["."]
-py-limited-api = true
-extra-compile-args = ["-O3", "-Werror", "-Wall", "-Wextra", "-Wdouble-promotion"]
 [tool.setuptools.package-data]
 "amsgpack" = ["py.typed"]
 [tool.black]

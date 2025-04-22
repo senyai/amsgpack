@@ -213,9 +213,12 @@ class UnpackerTest(SequenceTestCase):
         )
         with self.assertRaises(TypeError) as context:
             Unpacker(what="is that")
-        self.assertEqual(
+        self.assertIn(
             str(context.exception),
-            "'what' is an invalid keyword argument for Unpacker()",
+            (
+                "'what' is an invalid keyword argument for Unpacker()",
+                "Unpacker() got an unexpected keyword argument 'what'",
+            ),
         )
 
     def test_feed_nothing(self):
