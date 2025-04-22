@@ -1,8 +1,5 @@
 #include <Python.h>
 
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
-#define MAX(x, y) ((x) > (y) ? (x) : (y))
-
 /*
  double-ended queue
 */
@@ -112,7 +109,7 @@ static char *deque_read_bytes(char const **bytes, Deque *deque,
   for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
     Py_ssize_t iter_size = PyBytes_GET_SIZE(deque->deque_first->bytes);
     char const *iter_data = PyBytes_AS_STRING(deque->deque_first->bytes);
-    Py_ssize_t copy_size = MIN(iter_size, left_to_copy);
+    Py_ssize_t copy_size = Py_MIN(iter_size, left_to_copy);
     memcpy(new_mem + char_idx, iter_data, copy_size);
     left_to_copy -= copy_size;
     if (copy_size == iter_size) {
@@ -180,7 +177,7 @@ static inline Py_ssize_t deque_peek_size(Deque *deque,
     for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
       Py_ssize_t iter_size = PyBytes_GET_SIZE(cur);
       char const *iter_data = PyBytes_AS_STRING(cur);
-      Py_ssize_t copy_size = MIN(iter_size, left_to_copy);
+      Py_ssize_t copy_size = Py_MIN(iter_size, left_to_copy);
       memcpy((char *)&ret + char_idx, iter_data, copy_size);
       left_to_copy -= copy_size;
       char_idx += iter_size;
