@@ -3,6 +3,7 @@
 
 #include "deque.h"
 #include "ext.h"
+#include "macros.h"
 
 #define A_STACK_SIZE 32
 #include "packb.h"
@@ -306,7 +307,7 @@ parse_next:
     case '\x8d':
     case '\x8e':
     case '\x8f': {  // fixmap
-      if (can_not_append_stack(&self->parser)) {
+      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
@@ -339,7 +340,7 @@ parse_next:
     case '\x9d':
     case '\x9e':
     case '\x9f': {  // fixarray
-      if (can_not_append_stack(&self->parser)) {
+      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
@@ -796,12 +797,12 @@ parse_next:
       if (length > 10000000) {
         return size_error("list", length, 10000000);
       }
-      if (can_not_append_stack(&self->parser)) {
+      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
       parsed_object = (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
-      if (parsed_object == NULL) {
+      if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
       if (length == 0) {
@@ -865,7 +866,7 @@ parse_next:
       if (length > 100000) {
         return size_error("dict", length, 100000);
       }
-      if (can_not_append_stack(&self->parser)) {
+      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
@@ -896,13 +897,12 @@ parse_next:
             ? PyList_SET_ITEM(item->sequence, item->pos, parsed_object)
             : PyTuple_SET_ITEM(item->sequence, item->pos, parsed_object);
         item->pos += 1;
-        if (item->pos == item->size) {
+        if A_UNLIKELY(item->pos == item->size) {
           parsed_object = item->sequence;
           self->parser.stack_length -= 1;
-        } else {
-          goto parse_next;
+          break;
         }
-        break;
+        goto parse_next;
       case DICT_KEY:
         assert(item->key == NULL);
         assert(parsed_object != NULL);
@@ -920,13 +920,12 @@ parse_next:
         }
         item->action = DICT_KEY;
         item->pos += 1;
-        if (item->pos == item->size) {
+        if A_UNLIKELY(item->pos == item->size) {
           parsed_object = item->sequence;
           self->parser.stack_length -= 1;
-        } else {
-          goto parse_next;
+          break;
         }
-        break;
+        goto parse_next;
       }
       default:
         Py_UNREACHABLE();
@@ -977,7 +976,7 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
   // 1. Try to unpack current data
   {
     PyObject* current = Unpacker_iternext(&self->unpacker);
-    if (PyErr_Occurred() != NULL) {
+    if A_UNLIKELY(PyErr_Occurred() != NULL) {
       return NULL;
     }
     if (current != NULL) {
@@ -989,10 +988,10 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
   PyObject* bytes = self->read_size ? PyObject_CallOneArg(self->read_callback,
                                                           self->read_size)
                                     : PyObject_CallNoArgs(self->read_callback);
-  if (bytes == NULL) {
+  if A_UNLIKELY(bytes == NULL) {
     return NULL;
   }
-  if (PyBytes_CheckExact(bytes) == 0) {
+  if A_UNLIKELY(PyBytes_CheckExact(bytes) == 0) {
     PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
                  Py_TYPE(bytes)->tp_name);
     return NULL;
@@ -1000,7 +999,7 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
   // 3. Push bytes to the deque
   int const append_result = deque_append(&self->unpacker.deque, bytes);
   Py_DECREF(bytes);
-  if (append_result != 0) {
+  if A_UNLIKELY(append_result != 0) {
     return NULL;
   }
 
@@ -1099,7 +1098,7 @@ static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
   }
   PyObject* ret = Unpacker_iternext(unpacker);
   if (ret == NULL) {
-    if (PyErr_Occurred() == NULL) {
+    if A_UNLIKELY(PyErr_Occurred() == NULL) {
       PyErr_SetString(PyExc_ValueError, "Incomplete Message Pack format");
     }
     goto error;

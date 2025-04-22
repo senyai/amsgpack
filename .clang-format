@@ -1,0 +1,9 @@
+---
+BasedOnStyle: google
+Language: Cpp
+SpaceBeforeParensOptions:
+  AfterForeachMacros: false
+SpaceBeforeParens: Custom
+ForEachMacros:
+  - A_LIKELY
+  - A_UNLIKELY

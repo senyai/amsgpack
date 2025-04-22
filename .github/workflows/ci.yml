@@ -21,7 +21,7 @@ jobs:
           cache: 'pip'
       - uses: psf/black@25.1.0
       - name: clang-format
-        run: clang-format -style=google --dry-run --Werror *.c *.h
+        run: clang-format --dry-run --Werror *.c *.h
       - run: pip install -e .
       - run: python -m unittest -v
       - name: wheel
