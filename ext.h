@@ -15,15 +15,20 @@ static PyMemberDef Ext_members[] = {
 
 static int Ext_init(Ext *self, PyObject *args, PyObject *kwargs) {
   char code = 0;
-  PyObject *bytes_obj = NULL;
+  PyObject *bytes = NULL;
   static char *kwlist[] = {"code", "data", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "bO", kwlist, &code,
-                                   &bytes_obj)) {
+  if A_UNLIKELY(!PyArg_ParseTupleAndKeywords(args, kwargs, "bO", kwlist, &code,
+                                             &bytes)) {
+    return -1;
+  }
+  if A_UNLIKELY(PyBytes_CheckExact(bytes) == 0) {
+    PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
+                 Py_TYPE(bytes)->tp_name);
     return -1;
   }
   self->code = code;
-  Py_INCREF(bytes_obj);
-  self->data = bytes_obj;
+  Py_INCREF(bytes);
+  self->data = bytes;
   return 0;
 }
 
