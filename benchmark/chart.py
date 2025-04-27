@@ -78,4 +78,6 @@ ax2.set_ylabel("GiB / Second")
 ax2.set_xticks(x + width, sorted(file_names))
 ax2.legend(loc="upper left", ncols=2)
 
-plt.savefig(f"benchmark-{__version__}.svg")
+filename = f"benchmark-{__version__}.svg"
+plt.savefig(filename)
+print(f"saved {filename}")
