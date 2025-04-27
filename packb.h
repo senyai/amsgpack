@@ -1,3 +1,5 @@
+#include "raw.h"
+
 #define AMSGPACK_RESIZE(n)                                        \
   do {                                                            \
     if A_UNLIKELY(capacity < size + n) {                          \
@@ -311,6 +313,11 @@ pack_next:
         memcpy(data + 2, data_bytes, ext_data_length);
         size += 2 + ext_data_length;
     }
+  } else if (obj_type == &Raw_Type) {
+    Py_ssize_t const raw_length = PyBytes_GET_SIZE(((Raw*)obj)->data);
+    AMSGPACK_RESIZE(raw_length);
+    memcpy(data + size, PyBytes_AS_STRING(((Raw*)obj)->data), raw_length);
+    size += raw_length;
   } else {
     PyObject* errorMessage = PyUnicode_FromFormat("Unserializable '%s' object",
                                                   Py_TYPE(obj)->tp_name);

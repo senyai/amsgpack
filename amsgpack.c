@@ -1075,6 +1075,12 @@ PyMODINIT_FUNC PyInit_amsgpack(void) {
   if (PyModule_AddType(module, &Ext_Type) < 0) {
     goto error;
   }
+  if (PyType_Ready(&Raw_Type) < 0) {
+    goto error;
+  }
+  if (PyModule_AddType(module, &Raw_Type) < 0) {
+    goto error;
+  }
   if (PyType_Ready(&Unpacker_Type) < 0) {
     goto error;
   }

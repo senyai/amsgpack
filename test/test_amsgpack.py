@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from math import pi
 from unittest import TestCase
-from amsgpack import packb, Unpacker, Ext, unpackb
+from amsgpack import packb, Unpacker, Ext, unpackb, Raw
 
 
 Value = (
@@ -398,3 +398,32 @@ class ExtTest(TestCase):
             a.code = 3
         with self.assertRaises(AttributeError):
             a.data = b"x"
+
+
+class RawTest(TestCase):
+    def test_unicode_exception(self):
+        with self.assertRaises(TypeError) as context:
+            Raw("123")
+        self.assertEqual(
+            str(context.exception), "a bytes object is required, not 'str'"
+        )
+
+    def test_single_raw(self):
+        self.assertEqual(Raw(b"\xc2"), b"\xc2")
+
+    def test_pack_in_array(self):
+        self.assertEqual(packb([Raw(b"\xc2"), Raw(b"\xc3")]), b"\x92\xc2\xc3")
+
+    def test_eq(self):
+        self.assertEqual(Raw(b"\xc2"), Raw(b"\xc2"))
+
+    def test_ne(self):
+        self.assertNotEqual(Raw(b"\xc2"), Raw(b"\xc1"))
+
+    def test_key(self):
+        d = {
+            Raw(b"\xc2"): 1,
+            Raw(b"\xc2"): 2,
+        }
+        self.assertIn(Raw(b"\xc2"), d)
+        self.assertEqual(d[Raw(b"\xc2")], 2)
