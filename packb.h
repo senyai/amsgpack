@@ -64,7 +64,7 @@ static PyObject* packb(PyObject* Py_UNUSED(module), PyObject* obj) {
   Py_ssize_t capacity = 1024;
   Py_ssize_t size = 0;
   PyObject* buffer_py = PyBytes_FromStringAndSize(NULL, capacity);
-  if (A_UNLIKELY(buffer_py == NULL)) {
+  if A_UNLIKELY(buffer_py == NULL) {
     return NULL;
   }
   char* data = PyBytes_AS_STRING(buffer_py);
@@ -75,12 +75,12 @@ pack_next:
   capacity += 0;
   void* obj_type = Py_TYPE(obj);
   capacity += 0;
-  if (obj_type == &PyFloat_Type) {
+  if A_UNLIKELY(obj_type == &PyFloat_Type) {
     // https://docs.python.org/3/c-api/float.html
     AMSGPACK_RESIZE(9);
     put9_dbl(data + size, '\xcb', PyFloat_AS_DOUBLE(obj));
     size += 9;
-  } else if (obj_type == &PyLong_Type) {
+  } else if A_UNLIKELY(obj_type == &PyLong_Type) {
     // https://docs.python.org/3/c-api/long.html
     long const value = PyLong_AsLong(obj);
     if A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
@@ -136,7 +136,7 @@ pack_next:
         size += 9;
       }
     }
-  } else if (obj_type == &PyUnicode_Type) {
+  } else if A_UNLIKELY(obj_type == &PyUnicode_Type) {
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size = 0;
     const char* u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
@@ -164,7 +164,7 @@ pack_next:
     }
     memcpy(data + size, u8string, u8size);
     size += u8size;
-  } else if (obj_type == &PyList_Type || obj_type == &PyTuple_Type) {
+  } else if A_UNLIKELY(obj_type == &PyList_Type || obj_type == &PyTuple_Type) {
     // https://docs.python.org/3.11/c-api/list.html
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
@@ -196,7 +196,7 @@ pack_next:
         .size = length,
         .pos = 0};
     stack[stack_length++] = item;
-  } else if (obj_type == &PyDict_Type) {
+  } else if A_UNLIKELY(obj_type == &PyDict_Type) {
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
@@ -224,7 +224,7 @@ pack_next:
     PackbStack const item = {
         .action = KEY_NEXT, .sequence = obj, .size = dict_size, .pos = 0};
     stack[stack_length++] = item;
-  } else if (obj_type == &PyBytes_Type) {
+  } else if A_UNLIKELY(obj_type == &PyBytes_Type) {
     // https://docs.python.org/3.11/c-api/bytes.html
     char* bytes_buffer;
     Py_ssize_t bytes_size;
@@ -251,15 +251,15 @@ pack_next:
     }
     memcpy(data + size, bytes_buffer, bytes_size);
     size += bytes_size;
-  } else if (obj == Py_None) {
+  } else if A_UNLIKELY(obj == Py_None) {
     AMSGPACK_RESIZE(1);
     data[size] = '\xc0';
     size += 1;
-  } else if (obj_type == &PyBool_Type) {
+  } else if A_UNLIKELY(obj_type == &PyBool_Type) {
     AMSGPACK_RESIZE(1);
     data[size] = obj == Py_True ? '\xc3' : '\xc2';
     size += 1;
-  } else if (obj_type == &Ext_Type) {
+  } else if A_UNLIKELY(obj_type == &Ext_Type) {
     Ext* ext = (Ext*)obj;
     Py_ssize_t const ext_data_length = PyBytes_GET_SIZE(ext->data);
     char const* data_bytes = PyBytes_AS_STRING(ext->data);
