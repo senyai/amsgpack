@@ -211,7 +211,6 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
 static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   // timestamp case
   if (epoch == NULL) {  // initialize epoch
-    PyDateTime_IMPORT;
     PyObject* args = PyTuple_New(2);
     if A_UNLIKELY(args == NULL) {
       return NULL;
@@ -1093,6 +1092,8 @@ PyMODINIT_FUNC PyInit_amsgpack(void) {
   if (PyModule_AddType(module, &FileUnpacker_Type) < 0) {
     goto error;
   }
+  PyDateTime_IMPORT;
+
   return module;
 error:
   Py_DECREF(module);
