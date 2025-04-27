@@ -90,9 +90,9 @@ static PyObject* packb(PyObject* Py_UNUSED(module), PyObject* obj) {
 
   PackbStack stack[A_STACK_SIZE];
   unsigned int stack_length = 0;
+  void* obj_type;
 pack_next:
-  capacity += 0;
-  void* obj_type = Py_TYPE(obj);
+  obj_type = Py_TYPE(obj);
   if A_UNLIKELY(obj_type == &PyFloat_Type) {
     // https://docs.python.org/3/c-api/float.html
     AMSGPACK_RESIZE(9);
