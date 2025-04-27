@@ -6,3 +6,4 @@ __pycache__
 # benchmark data
 *.mpack
 msgpack_benchmark.json
+*.speedscope
