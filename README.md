@@ -45,5 +45,5 @@ b'\x82\xa7compact\xc3\xa6schema\x00'
 
 ### Benchmark
 
-![Benchmark](benchmark/benchmark-0.0.8.svg "benchmark-0.0.8")
+![Benchmark](benchmark/benchmark-0.0.9.svg "benchmark-0.0.9")
 Run `amsgpack_benchmark.py` and then `chart.py` to get your values

@@ -7,7 +7,7 @@
 
 #define A_STACK_SIZE 32
 #include "packb.h"
-#define VERSION "0.0.8"
+#define VERSION "0.0.9"
 #define MiB128 134217728
 
 static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
