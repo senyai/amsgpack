@@ -13,18 +13,29 @@ jobs:
     permissions:
       contents: read
       security-events: read
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12", "3.13"]
+        compiler: ["gcc", "clang"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
-      - uses: psf/black@25.1.0
-      - name: clang-format
-        run: clang-format --dry-run --Werror *.c *.h
-      - run: pip install -e .
+      - run: pip install -ve .
+        env:
+          CC: ${{ matrix.compiler }}
       - run: python -m unittest -v
       - name: wheel
         run: |
           pip install build
           python -m build . --wheel
+  format:
+    name: "black and clang-format"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: psf/black@25.1.0
+      - name: clang-format
+        run: clang-format --dry-run --Werror *.c *.h
