@@ -198,6 +198,14 @@ class PackbTest(SequenceTestCase):
     def test_pack_bytearray(self):
         self.assertEqual(packb(bytearray(b"world")), b"\xc4\x05world")
 
+    def test_pack_datetime(self):
+        from datetime import datetime, timezone
+
+        dt = datetime(2025, 4, 27, 20, 57, 26, 763583, timezone.utc)
+        bytes = packb(dt)
+        self.assertEqual(bytes, b"\xd7\xff\xb6\rh`h\x0e\x9a6")
+        self.assertEqual(unpackb(bytes), dt)
+
     def test_unsupported_type_raises_exception(self):
         with self.assertRaises(TypeError) as context:
             packb(1j)
