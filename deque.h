@@ -1,5 +1,7 @@
 #include <Python.h>
 
+#include "macros.h"
+
 /*
  double-ended queue
 */
@@ -11,6 +13,8 @@ typedef struct BytesNode {
 
 typedef struct {
   BytesNode *deque_first;  // head
+  char *deque_bytes;       // head's bytes
+  Py_ssize_t size_first;   // head's size
   BytesNode *deque_last;   // tail
   Py_ssize_t size;         // number of bytes left
   Py_ssize_t pos;          // position in the 'head'
@@ -26,8 +30,12 @@ static inline void deque_pop_first(Deque *deque, Py_ssize_t size_first) {
   PyMem_Free(deque->deque_first);
   if (next == NULL) {
     deque->deque_first = deque->deque_last = next;
+    // deque->deque_bytes = NULL;
+    // deque->size_first = 0;
   } else {
     deque->deque_first = next;
+    deque->deque_bytes = PyBytes_AS_STRING(next->bytes);
+    deque->size_first = PyBytes_GET_SIZE(next->bytes);
   }
   deque->pos = 0;
   deque->size -= size_first;
@@ -38,6 +46,8 @@ static inline void deque_clean(Deque *deque) {
     deque_pop_first(deque, 0);
   }
   deque->size = 0;
+  deque->deque_bytes = NULL;
+  deque->size_first = 0;
 }
 
 // returns: -1 - failure
@@ -45,11 +55,11 @@ static inline void deque_clean(Deque *deque) {
 //           1 - no op, when bytes size is 0
 static inline int deque_append(Deque *deque, PyObject *bytes) {
   Py_ssize_t const bytes_size = PyBytes_GET_SIZE(bytes);
-  if (bytes_size == 0) {
+  if A_UNLIKELY(bytes_size == 0) {
     return 1;
   }
   BytesNode *new_node = (BytesNode *)PyMem_Malloc(sizeof(BytesNode));
-  if (new_node == NULL) {
+  if A_UNLIKELY(new_node == NULL) {
     return -1;
   }
   Py_INCREF(bytes);
@@ -59,6 +69,8 @@ static inline int deque_append(Deque *deque, PyObject *bytes) {
     // deque init
     assert(deque->deque_last == NULL);
     deque->deque_first = deque->deque_last = new_node;
+    deque->deque_bytes = PyBytes_AS_STRING(bytes);
+    deque->size_first = bytes_size;
   } else {
     // deque append
     deque->deque_last->next = new_node;
@@ -76,38 +88,37 @@ static inline int deque_has_n_next_byte(Deque *deque, Py_ssize_t size) {
   return deque->pos + size <= deque->size;
 }
 
+// returns non null pointer to data when data is available in de  deque's head
+static inline char *deque_read_bytes_fast(Deque *deque,
+                                          Py_ssize_t const requested_size) {
+  if ((deque->pos + requested_size) <= deque->size_first) {
+    return deque->deque_bytes + deque->pos;
+  }
+  return NULL;
+}
+
 // deque_read_bytes must
-// return NULL, when nothing needs to be freed (PyMem_Free)
-// bytes are NULL when memory error occurred
-// advances the deque for `requested_size` when non NULL is returned
-static char *deque_read_bytes(char const **bytes, Deque *deque,
-                              Py_ssize_t const requested_size) {
+// returned needs to be freed (PyMem_Free)
+// advances the deque
+// only needs to be called when data is not in deque head
+static char *deque_read_bytes(Deque *deque, Py_ssize_t const requested_size) {
   assert(*bytes == NULL);
   assert(deque->pos + requested_size <= deque->size);
   assert(requested_size > 0);
   assert(deque->deque_first);
-  PyObject *const obj = deque->deque_first->bytes;
-  Py_ssize_t size_first = PyBytes_GET_SIZE(obj);
-  char const *start = PyBytes_AS_STRING(obj) + deque->pos;
-  if ((deque->pos + requested_size) <= size_first) {
-    // can get a view
-    *bytes = start;
-    // when view is returned, the used is responsible for advancing the deque
-    return NULL;
-  }
-  // must return copy
   char *new_mem = (char *)PyMem_Malloc(requested_size);
-  if (new_mem == NULL) {
+  if A_UNLIKELY(new_mem == NULL) {
     return NULL;
   }
-  Py_ssize_t copy_size = size_first - deque->pos;
+  char const *start = deque->deque_bytes + deque->pos;
+  Py_ssize_t const size_first = deque->size_first;
+  Py_ssize_t const copy_size = size_first - deque->pos;
   memcpy(new_mem, start, copy_size);
   deque_pop_first(deque, size_first);
   Py_ssize_t left_to_copy = requested_size - copy_size;
-  // copy_size = 0;
   assert(left_to_copy > 0);
   for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
-    Py_ssize_t iter_size = PyBytes_GET_SIZE(deque->deque_first->bytes);
+    Py_ssize_t const iter_size = PyBytes_GET_SIZE(deque->deque_first->bytes);
     char const *iter_data = PyBytes_AS_STRING(deque->deque_first->bytes);
     Py_ssize_t copy_size = Py_MIN(iter_size, left_to_copy);
     memcpy(new_mem + char_idx, iter_data, copy_size);
@@ -119,25 +130,21 @@ static char *deque_read_bytes(char const **bytes, Deque *deque,
     }
     char_idx += iter_size;
   }
-  *bytes = new_mem;
   return new_mem;
 }
 
 static inline char deque_peek_byte(Deque *deque) {
-  assert(deque->deque_first);
-  PyObject *obj = deque->deque_first->bytes;
-  char byte = PyBytes_AS_STRING(obj)[deque->pos];
-  return byte;
+  assert(deque->deque_bytes);
+  return deque->deque_bytes[deque->pos];
 }
 
 static inline char deque_read_byte(Deque *deque) {
   assert(deque->deque_first);
   assert(deque->deque_last);
   assert(deque->pos < deque->size);
-  PyObject *obj = deque->deque_first->bytes;
-  char byte = PyBytes_AS_STRING(obj)[deque->pos++];
-  Py_ssize_t size_first = PyBytes_GET_SIZE(obj);
-  if (size_first == deque->pos) {
+  char const byte = deque->deque_bytes[deque->pos++];
+  Py_ssize_t const size_first = deque->size_first;
+  if A_UNLIKELY(size_first == deque->pos) {
     deque_pop_first(deque, size_first);
   }
   return byte;
@@ -145,10 +152,10 @@ static inline char deque_read_byte(Deque *deque) {
 
 // advance deque, but not more, than the size of the first item
 static inline void deque_advance_first_bytes(Deque *deque, Py_ssize_t size) {
-  Py_ssize_t size_first = PyBytes_GET_SIZE(deque->deque_first->bytes);
+  Py_ssize_t const size_first = deque->size_first;
   assert(deque->pos + size <= size_first);
   deque->pos += size;
-  if (size_first == deque->pos) {
+  if A_UNLIKELY(size_first == deque->pos) {
     deque_pop_first(deque, size_first);
   }
 }
@@ -160,41 +167,54 @@ static inline Py_ssize_t deque_peek_size(Deque *deque,
   assert(requested_size > 0);
   assert(deque->deque_first);
   Py_ssize_t const pos = deque->pos + 1;  // read the size after current byte
-  PyObject *const obj = deque->deque_first->bytes;
-  Py_ssize_t size_first = PyBytes_GET_SIZE(obj);
-  char const *start = PyBytes_AS_STRING(obj) + pos;
-  Py_ssize_t ret = 0;
-  if ((pos + requested_size) <= size_first) {
-    memcpy(&ret, start, requested_size);
-  } else {
-    Py_ssize_t copy_size = size_first - pos;
-    memcpy(&ret, start, copy_size);
-    // deque_pop_first(deque, size_first);
-    BytesNode *cur = deque->deque_first->next;
-    Py_ssize_t left_to_copy = requested_size - copy_size;
-    // copy_size = 0;
-    assert(left_to_copy > 0);
-    for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
-      Py_ssize_t iter_size = PyBytes_GET_SIZE(cur);
-      char const *iter_data = PyBytes_AS_STRING(cur);
-      Py_ssize_t copy_size = Py_MIN(iter_size, left_to_copy);
-      memcpy((char *)&ret + char_idx, iter_data, copy_size);
-      left_to_copy -= copy_size;
-      char_idx += iter_size;
-      cur = cur->next;
+  Py_ssize_t const size_first = deque->size_first;
+  char const *start = deque->deque_bytes + pos;
+  Py_ssize_t ret_fixed = 0;
+  if A_LIKELY((pos + requested_size) <= size_first) {
+    // can be fully read from first element of the deque
+    switch (requested_size) {
+      case 1:
+        return (unsigned char)start[0];
+      case 2:
+        ((char *)&ret_fixed)[0] = start[1];
+        ((char *)&ret_fixed)[1] = start[0];
+        return ret_fixed;
+      case 4:
+        ((char *)&ret_fixed)[0] = start[3];
+        ((char *)&ret_fixed)[1] = start[2];
+        ((char *)&ret_fixed)[2] = start[1];
+        ((char *)&ret_fixed)[3] = start[0];
+        return ret_fixed;
+      default:
+        Py_UNREACHABLE();
     }
   }
-
-  Py_ssize_t ret_fixed = ret;
-  if (requested_size == 2) {
-    ((char *)&ret_fixed)[0] = ((char *)&ret)[1];
-    ((char *)&ret_fixed)[1] = ((char *)&ret)[0];
-  } else if (requested_size == 4) {
-    ((char *)&ret_fixed)[0] = ((char *)&ret)[3];
-    ((char *)&ret_fixed)[1] = ((char *)&ret)[2];
-    ((char *)&ret_fixed)[2] = ((char *)&ret)[1];
-    ((char *)&ret_fixed)[3] = ((char *)&ret)[0];
+  Py_ssize_t const copy_size = size_first - pos;
+  char ret[4] = {0, 0, 0, 0};
+  memcpy(&ret, start, copy_size);
+  // deque_pop_first(deque, size_first);
+  BytesNode *cur = deque->deque_first->next;
+  Py_ssize_t left_to_copy = requested_size - copy_size;
+  // copy_size = 0;
+  assert(left_to_copy > 0);
+  for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
+    Py_ssize_t iter_size = PyBytes_GET_SIZE(cur);
+    char const *iter_data = PyBytes_AS_STRING(cur);
+    Py_ssize_t copy_size = Py_MIN(iter_size, left_to_copy);
+    memcpy(ret + char_idx, iter_data, copy_size);
+    left_to_copy -= copy_size;
+    char_idx += iter_size;
+    cur = cur->next;
   }
 
+  if (requested_size == 2) {
+    ((char *)&ret_fixed)[0] = ret[1];
+    ((char *)&ret_fixed)[1] = ret[0];
+  } else if (requested_size == 4) {
+    ((char *)&ret_fixed)[0] = ret[3];
+    ((char *)&ret_fixed)[1] = ret[2];
+    ((char *)&ret_fixed)[2] = ret[1];
+    ((char *)&ret_fixed)[3] = ret[0];
+  }
   return ret_fixed;
 }

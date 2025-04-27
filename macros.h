@@ -1,3 +1,5 @@
+#ifndef A_INCLUDE_MACROS_H
+#define A_INCLUDE_MACROS_H
 #ifdef __GNUC__
 #define A_LIKELY(cond) (__builtin_expect(!!(cond), 1))
 #define A_UNLIKELY(cond) (__builtin_expect(!!(cond), 0))
@@ -15,4 +17,5 @@
 #else
 #define A_FORCE_INLINE inline
 #define A_NOINLINE
+#endif
 #endif
