@@ -18,7 +18,7 @@ Why:
 ```Python console
 >>> from amsgpack import packb, unpackb
 >>> packb({"compact": True, "schema": 0})
-bytearray(b'\x82\xa7compact\xc3\xa6schema\x00')
+b'\x82\xa7compact\xc3\xa6schema\x00'
 >>> unpackb(b'\x82\xa7compact\xc3\xa6schema\x00')
 {'compact': True, 'schema': 0}
 ```
