@@ -9,7 +9,11 @@ class Ext:
     data: Final[bytes]
     def __init__(self, code: int, data: bytes) -> None: ...
 
-Immutable: TypeAlias = str | int | float | bool | Ext | datetime | None
+class Raw:
+    data: Final[bytes]
+    def __init__(self, data: bytes) -> None: ...
+
+Immutable: TypeAlias = str | int | float | bool | Ext | Raw | datetime | None
 Value: TypeAlias = dict[Immutable, "Value"] | Sequence["Value"] | Immutable
 
 class Unpacker:
