@@ -355,6 +355,15 @@ class UnpackerTest(SequenceTestCase):
 
 
 class ExtTest(TestCase):
+    def test_unicode_exception(self):
+        with self.assertRaises(TypeError) as context:
+            self.assertEqual(
+                repr(Ext(127, "123")), "Ext(code=127, data=b'123')"
+            )
+        self.assertEqual(
+            str(context.exception), "a bytes object is required, not 'str'"
+        )
+
     def test_args_init(self):
         self.assertEqual(repr(Ext(127, b"123")), "Ext(code=127, data=b'123')")
 
