@@ -195,6 +195,9 @@ class PackbTest(SequenceTestCase):
     def test_can_pack_nested_dict(self):
         self.assertEqual(packb({"a": {"b": "c"}}), b"\x81\xa1a\x81\xa1b\xa1c")
 
+    def test_pack_bytearray(self):
+        self.assertEqual(packb(bytearray(b"world")), b"\xc4\x05world")
+
     def test_unsupported_type_raises_exception(self):
         with self.assertRaises(TypeError) as context:
             packb(1j)

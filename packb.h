@@ -74,7 +74,6 @@ static PyObject* packb(PyObject* Py_UNUSED(module), PyObject* obj) {
 pack_next:
   capacity += 0;
   void* obj_type = Py_TYPE(obj);
-  capacity += 0;
   if A_UNLIKELY(obj_type == &PyFloat_Type) {
     // https://docs.python.org/3/c-api/float.html
     AMSGPACK_RESIZE(9);
@@ -224,13 +223,18 @@ pack_next:
     PackbStack const item = {
         .action = KEY_NEXT, .sequence = obj, .size = dict_size, .pos = 0};
     stack[stack_length++] = item;
-  } else if A_UNLIKELY(obj_type == &PyBytes_Type) {
+  } else if A_UNLIKELY(obj_type == &PyBytes_Type ||
+                       obj_type == &PyByteArray_Type) {
     // https://docs.python.org/3.11/c-api/bytes.html
+    // https://docs.python.org/3.11/c-api/bytearray.html
     char* bytes_buffer;
     Py_ssize_t bytes_size;
-    if A_UNLIKELY(PyBytes_AsStringAndSize(obj, &bytes_buffer, &bytes_size) <
-                  0) {
-      goto error;
+    if A_LIKELY(obj_type == &PyBytes_Type) {
+      bytes_size = PyBytes_GET_SIZE(obj);
+      bytes_buffer = PyBytes_AS_STRING(obj);
+    } else {
+      bytes_size = PyByteArray_GET_SIZE(obj);
+      bytes_buffer = PyByteArray_AS_STRING(obj);
     }
     if (bytes_size <= 0xff) {
       AMSGPACK_RESIZE(2 + bytes_size);
