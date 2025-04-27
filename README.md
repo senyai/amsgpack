@@ -5,7 +5,8 @@ C library for python 3.10+.
 Why:
   * I couldn't negotiate adding type hints to [msgpack-python](https://github.com/msgpack/msgpack-python/pull/552)
   * I couldn't negotiate adding Unpacker to [ormsgpack](https://github.com/aviramha/ormsgpack/issues/227)
-  * I couldn't find another msgpack library
+  * There's no stream unpacking in [msgspec](https://github.com/jcrist/msgspec)
+  * I couldn't find another MessagePack library
   * `msgpack-python` interfaces are messy and the library is a bit slow
 
 
