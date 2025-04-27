@@ -409,10 +409,10 @@ parse_next:
           return NULL;
         }
         parsed_object = PyUnicode_DecodeUTF8(data, length, NULL);
-        if (allocated) {
-          PyMem_Free(allocated);
-        } else {
+        if A_LIKELY(allocated == NULL) {
           deque_advance_first_bytes(&self->deque, length);
+        } else {
+          PyMem_Free(allocated);
         }
         if (parsed_object == NULL) {
           return NULL;
@@ -446,10 +446,10 @@ parse_next:
               return NULL;
             }
             parsed_object = PyBytes_FromStringAndSize(data, length);
-            if (allocated) {
-              PyMem_Free(allocated);
-            } else {
+            if A_LIKELY(allocated == NULL) {
               deque_advance_first_bytes(&self->deque, length);
+            } else {
+              PyMem_Free(allocated);
             }
           }
           if A_UNLIKELY(parsed_object == NULL) {
@@ -498,10 +498,10 @@ parse_next:
             }
             parsed_object = (PyObject*)ext;
           }
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
+          if A_LIKELY(allocated == NULL) {
             deque_advance_first_bytes(&self->deque, data_length + 1);
+          } else {
+            PyMem_Free(allocated);
           }
           break;
         }
@@ -542,10 +542,10 @@ parse_next:
         if (parsed_object == NULL) {
           return NULL;
         }
-        if (allocated) {
-          PyMem_Free(allocated);
-        } else {
+        if A_LIKELY(allocated == NULL) {
           deque_advance_first_bytes(&self->deque, 2);
+        } else {
+          PyMem_Free(allocated);
         }
         break;
       }
@@ -571,10 +571,10 @@ parse_next:
         if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
         }
-        if (allocated) {
-          PyMem_Free(allocated);
-        } else {
+        if A_LIKELY(allocated == NULL) {
           deque_advance_first_bytes(&self->deque, 4);
+        } else {
+          PyMem_Free(allocated);
         }
         break;
       }
@@ -605,10 +605,10 @@ parse_next:
         if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
         }
-        if (allocated) {
-          PyMem_Free(allocated);
-        } else {
+        if A_LIKELY(allocated == NULL) {
           deque_advance_first_bytes(&self->deque, 8);
+        } else {
+          PyMem_Free(allocated);
         }
         break;
       }
@@ -632,10 +632,10 @@ parse_next:
         if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
         }
-        if (allocated) {
-          PyMem_Free(allocated);
-        } else {
+        if A_UNLIKELY(allocated == NULL) {
           deque_advance_first_bytes(&self->deque, 4);
+        } else {
+          PyMem_Free(allocated);
         }
         break;
       }
@@ -658,10 +658,10 @@ parse_next:
         qword.bytes[5] = data[2];
         qword.bytes[6] = data[1];
         qword.bytes[7] = data[0];
-        if (allocated) {
-          PyMem_Free(allocated);
-        } else {
+        if A_LIKELY(allocated == NULL) {
           deque_advance_first_bytes(&self->deque, 8);
+        } else {
+          PyMem_Free(allocated);
         }
         parsed_object = PyFloat_FromDouble(qword.d);
         if (parsed_object == NULL) {
@@ -701,10 +701,10 @@ parse_next:
           ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
           parsed_object = (PyObject*)ext;
         }
-        if (allocated) {
-          PyMem_Free(allocated);
-        } else {
+        if A_LIKELY(allocated == NULL) {
           deque_advance_first_bytes(&self->deque, data_length + 1);
+        } else {
+          PyMem_Free(allocated);
         }
         break;
       }
@@ -731,10 +731,10 @@ parse_next:
               return NULL;
             }
             parsed_object = PyUnicode_DecodeUTF8(data, length, NULL);
-            if (allocated) {
-              PyMem_Free(allocated);
-            } else {
+            if A_LIKELY(allocated == NULL) {
               deque_advance_first_bytes(&self->deque, length);
+            } else {
+              PyMem_Free(allocated);
             }
           }
           if (parsed_object == NULL) {
@@ -761,10 +761,10 @@ parse_next:
           word.bytes[1] = data[0];
           length = word.us;
 
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
+          if A_LIKELY(allocated == NULL) {
             deque_advance_first_bytes(&self->deque, 2);
+          } else {
+            PyMem_Free(allocated);
           }
         } else {
           return NULL;
@@ -784,10 +784,10 @@ parse_next:
           word.bytes[3] = data[0];
           length = word.ul;
 
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
+          if A_LIKELY(allocated == NULL) {
             deque_advance_first_bytes(&self->deque, 4);
+          } else {
+            PyMem_Free(allocated);
           }
         } else {
           return NULL;
@@ -830,10 +830,10 @@ parse_next:
           word.bytes[1] = data[0];
           length = word.us;
 
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
+          if A_LIKELY(allocated == NULL) {
             deque_advance_first_bytes(&self->deque, 2);
+          } else {
+            PyMem_Free(allocated);
           }
         } else {
           return NULL;
