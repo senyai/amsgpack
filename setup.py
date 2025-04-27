@@ -1,5 +1,13 @@
 from setuptools import setup, Extension
 
+with open("amsgpack.c") as f:
+    for line in f:
+        if line.startswith("#define VERSION"):
+            version = line.split('"')[-2]
+            break
+    else:
+        raise ValueError("version not found")
+
 module = Extension(
     "amsgpack",
     sources=["amsgpack.c"],
@@ -12,4 +20,4 @@ module = Extension(
     ],
 )
 
-setup(ext_modules=[module])
+setup(version=version, ext_modules=[module])
