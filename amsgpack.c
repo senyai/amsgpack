@@ -69,12 +69,12 @@ typedef struct {
 } FileUnpacker;
 
 static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
-  if (PyBytes_CheckExact(obj) == 0) {
+  if A_UNLIKELY(PyBytes_CheckExact(obj) == 0) {
     PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
                  Py_TYPE(obj)->tp_name);
     return NULL;
   }
-  if (deque_append(&self->deque, obj) < 0) {
+  if A_UNLIKELY(deque_append(&self->deque, obj) < 0) {
     return NULL;
   }
   Py_RETURN_NONE;
@@ -213,13 +213,13 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   if (epoch == NULL) {  // initialize epoch
     PyDateTime_IMPORT;
     PyObject* args = PyTuple_New(2);
-    if (args == NULL) {
+    if A_UNLIKELY(args == NULL) {
       return NULL;
     }
     PyTuple_SET_ITEM(args, 0, msgpack_byte_object[0]);
     PyTuple_SET_ITEM(args, 1, PyDateTime_TimeZone_UTC);
     epoch = PyDateTime_FromTimestamp(args);
-    if (epoch == NULL) {
+    if A_UNLIKELY(epoch == NULL) {
       return NULL;
     }
   }
@@ -1135,7 +1135,7 @@ static PyObject* unpackb(PyObject* restrict Py_UNUSED(module),
     }
     goto error;
   }
-  if (unpacker->deque.deque_first != NULL) {
+  if A_UNLIKELY(unpacker->deque.deque_first != NULL) {
     PyErr_SetString(PyExc_ValueError, "Extra data");
     goto error;
   }
