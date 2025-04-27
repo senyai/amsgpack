@@ -1,12 +1,12 @@
-#define AMSGPACK_RESIZE(n)                                      \
-  do {                                                          \
-    if A_UNLIKELY(capacity < size + n) {                        \
-      capacity = Py_MAX(capacity + capacity / 2, capacity + n); \
-      if (_PyBytes_Resize(&buffer_py, capacity) != 0) {         \
-        goto error;                                             \
-      }                                                         \
-      data = PyBytes_AS_STRING(buffer_py);                      \
-    }                                                           \
+#define AMSGPACK_RESIZE(n)                                        \
+  do {                                                            \
+    if A_UNLIKELY(capacity < size + n) {                          \
+      capacity += Py_MAX(capacity, n);                            \
+      if A_UNLIKELY(_PyBytes_Resize(&buffer_py, capacity) != 0) { \
+        goto error;                                               \
+      }                                                           \
+      data = PyBytes_AS_STRING(buffer_py);                        \
+    }                                                             \
   } while (0)
 
 static inline void put2(char* dst, char header, char value) {
