@@ -102,7 +102,6 @@ static inline char *deque_read_bytes_fast(Deque *deque,
 // advances the deque
 // only needs to be called when data is not in deque head
 static char *deque_read_bytes(Deque *deque, Py_ssize_t const requested_size) {
-  assert(*bytes == NULL);
   assert(deque->pos + requested_size <= deque->size);
   assert(requested_size > 0);
   assert(deque->deque_first);
