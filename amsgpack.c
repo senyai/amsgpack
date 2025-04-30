@@ -1181,9 +1181,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   return 0;
 }
 
-int LLVMFuzzerInitialize(int* argc, char*** argv) {
-  (void)argc;
-  (void)argv;
+int LLVMFuzzerInitialize(int* Py_UNUSED(argc), char*** Py_UNUSED(argv)) {
   Py_InitializeEx(0);
   PyInit_amsgpack();
   return 0;
