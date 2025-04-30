@@ -310,7 +310,7 @@ parse_next:
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      Py_ssize_t const length = next_byte & 0x0f;
+      Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x0f;
       parsed_object = _PyDict_NewPresized(length);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
@@ -343,7 +343,7 @@ parse_next:
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      Py_ssize_t const length = next_byte & 0x0f;
+      Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x0f;
       parsed_object = (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
@@ -399,7 +399,7 @@ parse_next:
     case '\xbd':
     case '\xbe':
     case '\xbf': {  // fixstr
-      Py_ssize_t const length = next_byte & 0x1f;
+      Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x1f;
       if (deque_has_n_next_byte(&self->deque, length + 1)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, length);
