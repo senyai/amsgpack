@@ -957,6 +957,9 @@ parse_next:
         int const set_item_result =
             PyDict_SetItem(item->sequence, item->key, parsed_object);
         Py_DECREF(item->key);
+        // The `key` must be set to NULL, because the unpacker can be deleted
+        // after there's no more data
+        item->key = NULL;
         Py_DECREF(parsed_object);
         if (set_item_result != 0) {
           return NULL;
