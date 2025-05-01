@@ -961,7 +961,7 @@ parse_next:
         // after there's no more data
         item->key = NULL;
         Py_DECREF(parsed_object);
-        if (set_item_result != 0) {
+        if A_UNLIKELY(set_item_result != 0) {
           return NULL;
         }
         item->action = DICT_KEY;
