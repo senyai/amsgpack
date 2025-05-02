@@ -150,6 +150,7 @@ static inline char deque_read_byte(Deque *deque) {
 }
 
 // advance deque, but not more, than the size of the first item
+// should only be used for when `size` was obtained with `deque_read_bytes_fast`
 static inline void deque_advance_first_bytes(Deque *deque, Py_ssize_t size) {
   Py_ssize_t const size_first = deque->size_first;
   assert(deque->pos + size <= size_first);
