@@ -403,7 +403,7 @@ pack_next:
         obj = item->value;
         goto pack_next;
       default:
-        Py_UNREACHABLE();
+        Py_UNREACHABLE();  // GCOVR_EXCL_LINE
     }
   }
 

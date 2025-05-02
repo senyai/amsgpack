@@ -206,7 +206,7 @@ static inline Py_ssize_t deque_peek_size(Deque const *deque,
       ((char *)&ret_fixed)[3] = start[0];
       break;
     default:
-      Py_UNREACHABLE();
+      Py_UNREACHABLE();  // GCOVR_EXCL_LINE
   }
   return ret_fixed;
 }

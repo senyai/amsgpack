@@ -7,3 +7,6 @@ __pycache__
 *.mpack
 msgpack_benchmark.json
 *.speedscope
+*.gcno
+*.gcda
+/coverage
