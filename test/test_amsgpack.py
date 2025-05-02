@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from math import pi
 from unittest import TestCase
 from amsgpack import packb, Unpacker, Ext, unpackb, Raw
+from struct import pack
 
 
 Value = (
@@ -65,6 +66,26 @@ class PackbIntTest(SequenceTestCase):
             exp = packb(ref)
             self.assertEqual(exp, b"\xcc" + bytes((ref,)))
 
+    def test_uint64(self):
+        ref = 0x7FFF_FFFF_FFFF_FFFF
+        exp = packb(ref)
+        self.assertEqual(exp, b"\xcf\x7f\xff\xff\xff\xff\xff\xff\xff")
+        self.assertEqual(unpackb(exp), ref)
+
+    def test_uint_16(self):
+        for val in (0xFFFF, 0x1000, 0xFF00, 0x0100):
+            exp = packb(val)
+            ref = pack(">BH", 0xCD, val)
+            self.assertEqual(exp, ref)
+
+    def test_uint_32(self):
+        for val in (0xFFFFFFFF, 0x100000, 0xFF0000, 0x0100000):
+            exp = packb(val)
+            ref = pack(">BI", 0xCE, val)
+            self.assertEqual(exp, ref)
+
+
+class UnpackbIntTest(SequenceTestCase):
     def test_uint_16(self):
         u = Unpacker()
         for char in b"\xcd\x00\x00\xcd\x00\xff\xcd\x01\x00\xcd\xff\xff":
@@ -78,12 +99,6 @@ class PackbIntTest(SequenceTestCase):
         ) in b"\xce\x00\x00\x00\x00\xce\x00\x00\x00\xff\xce\x00\x00\x01\x00\xce\x00\x00\xff\xff\xce\xff\xff\xff\xff":
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF, 0xFFFFFFFF))
-
-    def test_uint64(self):
-        ref = 0x7FFF_FFFF_FFFF_FFFF
-        exp = packb(ref)
-        self.assertEqual(exp, b"\xcf\x7f\xff\xff\xff\xff\xff\xff\xff")
-        self.assertEqual(unpackb(exp), ref)
 
 
 class PackbTest(SequenceTestCase):
@@ -137,9 +152,15 @@ class PackbTest(SequenceTestCase):
         self.assertEqual(unpackb(b"\x80"), {})
 
     def test_dict_0_to_20_el(self):
+        value = {}
         for n in range(21):
-            value = {}.fromkeys([str(i) for i in range(n)])
+            # value = dict.fromkeys([str(i) for i in range(n)])
             self.assertEqual(unpackb(packb(value)), value)
+            value[str(n)] = n
+
+    def test_dict_0x10000(self):
+        value = dict.fromkeys([str(i) for i in range(0x10000)])
+        self.assertEqual(unpackb(packb(value)), value)
 
     def test_bytes_0_to_20_el(self):
         for n in range(21):
@@ -147,9 +168,9 @@ class PackbTest(SequenceTestCase):
             self.assertEqual(unpackb(packb(value)), value)
 
     def test_bytes_other(self):
-        value = "A" * 0xFFFF
+        value = b"A" * 0xFFFF
         self.assertEqual(unpackb(packb(value)), value)
-        value = "A" * 0x20000
+        value = b"A" * 0x20000
         self.assertEqual(unpackb(packb(value)), value)
 
     def test_main_page_example(self):
@@ -212,6 +233,23 @@ class PackbTest(SequenceTestCase):
         self.assertEqual(
             str(context.exception), "Unserializable 'complex' object"
         )
+
+    def test_deep_exception(self):
+        outer = inner = []
+        for i in range(31):
+            inner.append([])
+            inner = inner[0]
+        self.assertEqual(packb(outer), b"\x91" * 31 + b"\x90")
+        inner.append([])
+
+        with self.assertRaises(ValueError) as context:
+            packb(outer)
+        self.assertEqual(str(context.exception), "Deeply nested object")
+        inner.clear()
+        inner.append({})
+        with self.assertRaises(ValueError) as context:
+            packb(outer)
+        self.assertEqual(str(context.exception), "Deeply nested object")
 
 
 class UnpackerTest(SequenceTestCase):
@@ -361,13 +399,45 @@ class UnpackerTest(SequenceTestCase):
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
 
+    def test_str8_split_in_1_byte(self):
+        u = Unpacker()
+        for char in b"\xd9\x01A":
+            u.feed(bytes((char,)))
+        self.assertEqual(list(u), ["A"])
 
-class ExtTest(TestCase):
+    def test_bin8_split_in_1_byte(self):
+        u = Unpacker()
+        for char in b"\xc4\x01A":
+            u.feed(bytes((char,)))
+        self.assertEqual(list(u), [b"A"])
+
+    def test_ext8_split_in_1_byte(self):
+        u = Unpacker()
+        for char in b"\xc7\x01\x02A":
+            u.feed(bytes((char,)))
+        self.assertEqual(list(u), [Ext(code=2, data=b"A")])
+
+    def test_str8_zero_size_in_the_middle(self):
+        u = Unpacker()
+        for seq in (b"|\xd9", b"\x00\x00"):
+            u.feed(seq)
+        self.assertEqual(list(u), [124, "", 0])
+
+
+class ExtClassTest(TestCase):
     def test_unicode_exception(self):
         with self.assertRaises(TypeError) as context:
             Ext(127, "123")
         self.assertEqual(
             str(context.exception), "a bytes object is required, not 'str'"
+        )
+
+    def test_arguments_exception(self):
+        with self.assertRaises(TypeError) as context:
+            Ext(code=127)
+        self.assertEqual(
+            str(context.exception),
+            "function missing required argument 'data' (pos 2)",
         )
 
     def test_args_init(self):
@@ -394,6 +464,13 @@ class ExtTest(TestCase):
         b = Ext(code=128, data=b"123")
         self.assertNotEqual(a, b)
         self.assertNotEqual(hash(a), hash(b))
+        self.assertFalse(a == b)
+
+    def test_data_not_equal(self):
+        a = Ext(code=42, data=b"456")
+        b = Ext(code=42, data=b"457")
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(hash(a), hash(b))
 
     def test_can_access_attributes(self):
         a = Ext(code=127, data=b"123")
@@ -407,6 +484,21 @@ class ExtTest(TestCase):
         with self.assertRaises(AttributeError):
             a.data = b"x"
 
+    def test_compare_less_exception(self):
+        a = Ext(code=127, data=b"123")
+        b = Ext(code=128, data=b"123")
+        with self.assertRaises(TypeError) as context:
+            a < b
+        self.assertEqual(
+            str(context.exception),
+            "'<' not supported between instances of 'amsgpack.Ext' and 'amsgpack.Ext'",
+        )
+
+    def test_compare_types_exception(self):
+        a = Ext(code=127, data=b"123")
+        self.assertNotEqual(a, b"b")
+        self.assertFalse(a == b"b")
+
 
 class RawTest(TestCase):
     def test_unicode_exception(self):
@@ -414,6 +506,14 @@ class RawTest(TestCase):
             Raw("123")
         self.assertEqual(
             str(context.exception), "a bytes object is required, not 'str'"
+        )
+
+    def test_arguments_exception(self):
+        with self.assertRaises(TypeError) as context:
+            Raw(code=1, data=b"123")
+        self.assertEqual(
+            str(context.exception),
+            "function takes at most 1 keyword argument (2 given)",
         )
 
     def test_single_raw(self):
@@ -435,3 +535,6 @@ class RawTest(TestCase):
         }
         self.assertIn(Raw(b"\xc2"), d)
         self.assertEqual(d[Raw(b"\xc2")], 2)
+
+    def test_repr(self):
+        self.assertEqual(repr(Raw(b"Aa")), "Raw(data=b'Aa')")
