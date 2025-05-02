@@ -7,7 +7,7 @@
 
 #define A_STACK_SIZE 32
 #include "packb.h"
-#define VERSION "0.1.0"
+#define VERSION "0.1.1"
 #define MiB128 134217728
 
 static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
@@ -1161,15 +1161,18 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   Py_DECREF(no_kwargs);
   assert(unpacker != NULL);
   {
-    PyObject* bytes = PyBytes_FromStringAndSize((char const*)data, size);
-    assert(bytes != NULL);
-    PyObject* feed_res = unpacker_feed(unpacker, bytes);
-    Py_DECREF(bytes);
-    if (feed_res == NULL) {
-      Py_DECREF(unpacker);
-      return -1;
-    } else {
-      Py_DECREF(feed_res);
+    for (size_t data_idx = 0; data_idx < size; data_idx += 3) {
+      PyObject* bytes = PyBytes_FromStringAndSize((char const*)data + data_idx,
+                                                  Py_MIN(2, size - data_idx));
+      assert(bytes != NULL);
+      PyObject* feed_res = unpacker_feed(unpacker, bytes);
+      Py_DECREF(bytes);
+      if (feed_res == NULL) {
+        Py_DECREF(unpacker);
+        return -1;
+      } else {
+        Py_DECREF(feed_res);
+      }
     }
   }
   for (;;) {
