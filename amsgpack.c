@@ -435,7 +435,7 @@ parse_next:
       if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
         Py_ssize_t length = deque_peek_size(&self->deque, size_size);
         if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
-          deque_advance_first_bytes(&self->deque, 1 + size_size);
+          deque_skip_size(&self->deque, size_size);
           if (length == 0) {
             parsed_object = PyBytes_FromStringAndSize(NULL, length);
           } else {
@@ -478,7 +478,7 @@ parse_next:
         }
         if A_LIKELY(deque_has_n_next_byte(&self->deque,
                                           1 + size_size + 1 + data_length)) {
-          deque_advance_first_bytes(&self->deque, 1 + size_size);
+          deque_skip_size(&self->deque, size_size);
           char* data = deque_read_bytes_fast(&self->deque, data_length + 1);
           char* allocated = NULL;
           if A_UNLIKELY(data == NULL) {
@@ -746,7 +746,7 @@ parse_next:
         Py_ssize_t length = deque_peek_size(&self->deque, size_size);
         if A_LIKELY(deque_has_n_next_byte(&self->deque,
                                           1 + size_size + length)) {
-          deque_advance_first_bytes(&self->deque, 1 + size_size);
+          deque_skip_size(&self->deque, size_size);
           if (length == 0) {
             parsed_object = PyUnicode_FromStringAndSize(NULL, length);
           } else {
