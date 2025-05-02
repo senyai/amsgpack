@@ -743,7 +743,7 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xd9');
       if A_LIKELY(deque_has_n_next_byte(&self->deque, 1 + size_size)) {
-        Py_ssize_t length = deque_peek_size(&self->deque, size_size);
+        Py_ssize_t const length = deque_peek_size(&self->deque, size_size);
         if A_LIKELY(deque_has_n_next_byte(&self->deque,
                                           1 + size_size + length)) {
           deque_skip_size(&self->deque, size_size);

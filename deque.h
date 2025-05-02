@@ -84,7 +84,7 @@ static inline int deque_has_next_byte(Deque *deque) {
   return deque->pos < deque->size;
 }
 
-static inline int deque_has_n_next_byte(Deque *deque, Py_ssize_t size) {
+static inline int deque_has_n_next_byte(Deque const *deque, Py_ssize_t size) {
   return deque->pos + size <= deque->size;
 }
 
@@ -132,7 +132,7 @@ static char *deque_read_bytes(Deque *deque, Py_ssize_t const requested_size) {
   return new_mem;
 }
 
-static inline char deque_peek_byte(Deque *deque) {
+static inline char deque_peek_byte(Deque const *deque) {
   assert(deque->deque_bytes);
   return deque->deque_bytes[deque->pos];
 }
@@ -159,7 +159,7 @@ static inline void deque_advance_first_bytes(Deque *deque, Py_ssize_t size) {
   }
 }
 
-static inline Py_ssize_t deque_peek_size(Deque *deque,
+static inline Py_ssize_t deque_peek_size(Deque const *deque,
                                          Py_ssize_t requested_size) {
   assert(requested_size == 1 || requested_size == 2 || requested_size == 4);
   assert(deque->pos + requested_size <= deque->size);
