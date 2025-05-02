@@ -271,7 +271,7 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
     return NULL;
   }
   PyObject* datetime_obj = PyNumber_Add(epoch, delta);
-  Py_DECREF(delta);
+  Py_XDECREF(delta);
   return datetime_obj;
 }
 
