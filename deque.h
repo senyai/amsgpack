@@ -167,53 +167,78 @@ static inline Py_ssize_t deque_peek_size(Deque *deque,
   assert(deque->deque_first);
   Py_ssize_t const pos = deque->pos + 1;  // read the size after current byte
   Py_ssize_t const size_first = deque->size_first;
-  char const *start = deque->deque_bytes + pos;
-  Py_ssize_t ret_fixed = 0;
+  char const *start;
+  char ret[4] = {0, 0, 0, 0};
   if A_LIKELY((pos + requested_size) <= size_first) {
-    // can be fully read from first element of the deque
-    switch (requested_size) {
-      case 1:
-        return (unsigned char)start[0];
-      case 2:
-        ((char *)&ret_fixed)[0] = start[1];
-        ((char *)&ret_fixed)[1] = start[0];
-        return ret_fixed;
-      case 4:
-        ((char *)&ret_fixed)[0] = start[3];
-        ((char *)&ret_fixed)[1] = start[2];
-        ((char *)&ret_fixed)[2] = start[1];
-        ((char *)&ret_fixed)[3] = start[0];
-        return ret_fixed;
-      default:
-        Py_UNREACHABLE();
+    start = deque->deque_bytes + pos;
+  } else {
+    Py_ssize_t copy_size = size_first - pos;
+    start = ret;
+    memcpy(&ret, start, copy_size);
+    BytesNode *cur = deque->deque_first->next;
+    Py_ssize_t left_to_copy = requested_size - copy_size;
+    assert(left_to_copy > 0);
+    for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
+      Py_ssize_t const iter_size = PyBytes_GET_SIZE(cur->bytes);
+      char const *iter_data = PyBytes_AS_STRING(cur->bytes);
+      copy_size = Py_MIN(iter_size, left_to_copy);
+      memcpy(ret + char_idx, iter_data, copy_size);
+      left_to_copy -= copy_size;
+      char_idx += iter_size;
+      cur = cur->next;
     }
   }
-  Py_ssize_t const copy_size = size_first - pos;
-  char ret[4] = {0, 0, 0, 0};
-  memcpy(&ret, start, copy_size);
-  // deque_pop_first(deque, size_first);
-  BytesNode *cur = deque->deque_first->next;
-  Py_ssize_t left_to_copy = requested_size - copy_size;
-  // copy_size = 0;
-  assert(left_to_copy > 0);
-  for (Py_ssize_t char_idx = copy_size; char_idx < requested_size;) {
-    Py_ssize_t iter_size = PyBytes_GET_SIZE(cur);
-    char const *iter_data = PyBytes_AS_STRING(cur);
-    Py_ssize_t copy_size = Py_MIN(iter_size, left_to_copy);
-    memcpy(ret + char_idx, iter_data, copy_size);
-    left_to_copy -= copy_size;
-    char_idx += iter_size;
-    cur = cur->next;
-  }
 
-  if (requested_size == 2) {
-    ((char *)&ret_fixed)[0] = ret[1];
-    ((char *)&ret_fixed)[1] = ret[0];
-  } else if (requested_size == 4) {
-    ((char *)&ret_fixed)[0] = ret[3];
-    ((char *)&ret_fixed)[1] = ret[2];
-    ((char *)&ret_fixed)[2] = ret[1];
-    ((char *)&ret_fixed)[3] = ret[0];
+  Py_ssize_t ret_fixed = 0;
+  switch (requested_size) {
+    case 1:
+      ((char *)&ret_fixed)[0] = start[0];
+      break;
+    case 2:
+      ((char *)&ret_fixed)[0] = start[1];
+      ((char *)&ret_fixed)[1] = start[0];
+      break;
+    case 4:
+      ((char *)&ret_fixed)[0] = start[3];
+      ((char *)&ret_fixed)[1] = start[2];
+      ((char *)&ret_fixed)[2] = start[1];
+      ((char *)&ret_fixed)[3] = start[0];
+      break;
+    default:
+      Py_UNREACHABLE();
   }
   return ret_fixed;
+}
+
+// should only be used after `deque_peek_size`
+// skips size + 1
+static inline void deque_skip_size(Deque *deque, Py_ssize_t size) {
+  assert(size == 1 || size == 2 || size == 4);
+  assert(deque->pos + size <= deque->size);
+  assert(size > 0);
+  assert(deque->deque_first);
+
+  Py_ssize_t const pos = deque->pos + 1;  // read the size after current byte
+  Py_ssize_t const size_first = deque->size_first;
+  if A_LIKELY((pos + size + 1) <= size_first) {
+    deque->pos += size + 1;
+    if A_UNLIKELY(size_first == deque->pos) {
+      deque_pop_first(deque, size_first);
+    }
+    return;
+  }
+  Py_ssize_t skip_size = size_first - deque->pos;
+  deque_pop_first(deque, size_first);
+  Py_ssize_t left_to_skip = size + 1 - skip_size;
+  for (Py_ssize_t char_idx = skip_size; char_idx <= size;) {
+    Py_ssize_t const iter_size = PyBytes_GET_SIZE(deque->deque_first->bytes);
+    skip_size = Py_MIN(iter_size, left_to_skip);
+    left_to_skip -= skip_size;
+    if (skip_size == iter_size) {
+      deque_pop_first(deque, iter_size);
+    } else {
+      deque->pos = skip_size;
+    }
+    char_idx += iter_size;
+  }
 }
