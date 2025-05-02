@@ -93,8 +93,10 @@ static PyObject *Ext_richcompare(Ext *self, PyObject *other, int op) {
 
   // Compare the 'data' fields using Python's equality
   int data_cmp = PyObject_RichCompareBool(self->data, other_ext->data, Py_EQ);
-  if (data_cmp == -1) {
-    return NULL;  // Exception occurred
+  if A_UNLIKELY(data_cmp == -1) {
+    // Exception occurred. It's not possible to reach this code, as
+    // `self->data` and `other_ext->data` are of the same type
+    return NULL;  // GCOVR_EXCL_LINE
   }
 
   // Determine result based on comparison operator

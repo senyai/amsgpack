@@ -267,7 +267,7 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   }
   PyObject* delta = PyDelta_FromDSU(days, seconds, microseconds);
 
-  if (delta == NULL) {
+  if A_UNLIKELY(delta == NULL) {
     return NULL;
   }
   PyObject* datetime_obj = PyNumber_Add(epoch, delta);
@@ -769,7 +769,7 @@ parse_next:
               PyMem_Free(allocated);
             }
           }
-          if (parsed_object == NULL) {
+          if A_UNLIKELY(parsed_object == NULL) {
             return NULL;
           }
           break;
