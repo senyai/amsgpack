@@ -3,6 +3,7 @@ from math import pi
 from unittest import TestCase
 from amsgpack import packb, Unpacker, Ext, unpackb, Raw
 from struct import pack
+from .failing_malloc import failing_malloc
 
 
 Value = (
@@ -86,6 +87,11 @@ class PackbIntTest(SequenceTestCase):
 
 
 class UnpackbIntTest(SequenceTestCase):
+    def test_uint_8_only_ont_byte_is_available(self):
+        u = Unpacker()
+        u.feed(b"\xcc")
+        self.safeSequenceEqual(u, ())
+
     def test_uint_16(self):
         u = Unpacker()
         for char in b"\xcd\x00\x00\xcd\x00\xff\xcd\x01\x00\xcd\xff\xff":
@@ -372,6 +378,20 @@ class UnpackerTest(SequenceTestCase):
         ref = tuple([b"A" * i for i in range(2)])
         self.safeSequenceEqual(u, ref)
 
+    def test_bin8_splitted(self):
+        u = Unpacker()
+        for char in b"\xc4\x02\x03\x04":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (b"\x03\x04",))
+
+    def test_bin_malloc_failure(self):
+        u = Unpacker()
+        for char in b"\xc4\xffaaaaa":
+            u.feed(bytes((char,)))
+        u.feed(b"b" * 250)
+        with self.assertRaises(MemoryError), failing_malloc(20, "mem"):
+            self.safeSequenceEqual(u, (b"aaaaa" + b"b" * 250,))
+
     def test_bin16(self):
         u = Unpacker()
         for i in range(256, 258):
@@ -422,6 +442,23 @@ class UnpackerTest(SequenceTestCase):
         for seq in (b"|\xd9", b"\x00\x00"):
             u.feed(seq)
         self.assertEqual(list(u), [124, "", 0])
+
+    def test_bin_PyBytes_FromStringAndSize_malloc(self):
+        u = Unpacker()
+        u.feed(b"\xc6\x00\x01\x00\x00" + b"A" * 0x10000)
+        with self.assertRaises(MemoryError), failing_malloc(0x10000, "raw"):
+            next(u)
+
+    def test_bin_header_only(self):
+        u = Unpacker()
+        u.feed(b"\xc6")
+        with self.assertRaises(StopIteration):
+            next(u)
+
+    def test_feed_no_memory(self):
+        u = Unpacker()
+        with self.assertRaises(MemoryError), failing_malloc(9, "mem"):
+            u.feed(b"\xc6")
 
 
 class ExtClassTest(TestCase):
