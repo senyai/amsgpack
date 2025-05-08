@@ -3,6 +3,8 @@
 *.egg-info
 *.so
 __pycache__
+# executable, produced by ./fuzzer.sh
+amsgpack_fuzzer
 # benchmark data
 *.mpack
 msgpack_benchmark.json
