@@ -101,15 +101,16 @@ static inline char *deque_read_bytes_fast(Deque *deque,
 // returned needs to be freed (PyMem_Free)
 // advances the deque
 // only needs to be called when data is not in deque head
-static char *deque_read_bytes(Deque *deque, Py_ssize_t const requested_size) {
+static char *deque_read_bytes(Deque *const deque,
+                              Py_ssize_t const requested_size) {
   assert(deque->pos + requested_size <= deque->size);
   assert(requested_size > 0);
   assert(deque->deque_first);
-  char *new_mem = (char *)PyMem_Malloc(requested_size);
+  char *const new_mem = (char *)PyMem_Malloc(requested_size);
   if A_UNLIKELY(new_mem == NULL) {
-    return NULL;
+    return (char *)PyErr_NoMemory();  // PyErr_NoMemory always returns NULL
   }
-  char const *start = deque->deque_bytes + deque->pos;
+  char const *const start = deque->deque_bytes + deque->pos;
   Py_ssize_t const size_first = deque->size_first;
   Py_ssize_t const copy_size = size_first - deque->pos;
   memcpy(new_mem, start, copy_size);

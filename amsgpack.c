@@ -75,7 +75,7 @@ static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
     return NULL;
   }
   if A_UNLIKELY(deque_append(&self->deque, obj) < 0) {
-    return NULL;
+    return PyErr_NoMemory();
   }
   Py_RETURN_NONE;
 }
