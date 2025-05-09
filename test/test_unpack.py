@@ -1,0 +1,227 @@
+from amsgpack import packb, Unpacker, Ext, unpackb, Raw
+from .failing_malloc import failing_malloc
+from .test_amsgpack import SequenceTestCase
+
+
+class UnpackerTest(SequenceTestCase):
+    def test_unpacker_gets_no_argumens(self):
+        with self.assertRaises(TypeError) as context:
+            Unpacker("what", "is", "that")
+        self.assertEqual(
+            str(context.exception),
+            "Unpacker() takes at most 1 argument (3 given)",
+        )
+        with self.assertRaises(TypeError) as context:
+            Unpacker(what="is that")
+        self.assertIn(
+            str(context.exception),
+            (
+                "'what' is an invalid keyword argument for Unpacker()",
+                "Unpacker() got an unexpected keyword argument 'what'",
+            ),
+        )
+
+    def test_feed_nothing(self):
+        self.safeSequenceEqual(Unpacker(), ())
+
+    def test_feed_non_bytes(self):
+        u = Unpacker()
+        with self.assertRaises(TypeError) as context:
+            u.feed("")
+        self.assertEqual(
+            str(context.exception), "a bytes object is required, not 'str'"
+        )
+
+    def test_unpack_none(self):
+        u = Unpacker()
+        u.feed(b"\xc0")
+        self.safeSequenceEqual(u, (None,))
+
+    def test_unpack_bool(self):
+        u = Unpacker()
+        u.feed(b"\xc2\xc3")
+        self.safeSequenceEqual(u, (False, True))
+
+    def test_double(self):
+        u = Unpacker()
+        u.feed(b"\xcb@\t!\xfbTD-\x11")
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def test_feed_2_bytes(self):
+        u = Unpacker()
+        u.feed(b"\xc2")
+        u.feed(b"\xc3")
+        self.safeSequenceEqual(u, (False, True))
+
+    def test_feed_double_byte_by_byte(self):
+        u = Unpacker()
+        for byte in b"\xcb@\t!\xfbTD-\x11":
+            u.feed(bytes((byte,)))
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def test_feed_double_byte_by_byte_and_iterate(self):
+        u = Unpacker()
+        for byte in b"\xcb@\t!\xfbTD-\x11":
+            u.feed(bytes((byte,)))
+            if byte == 0xCB:
+                with self.assertRaises(StopIteration):
+                    next(u)
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def test_feed_double_2_bytes_sequence(self):
+        u = Unpacker()
+        pi_bytes = b"\xcb@\t!\xfbTD-\x11"
+        for idx in range(0, len(pi_bytes), 2):
+            u.feed(bytes((*pi_bytes[idx : idx + 2],)))
+        self.safeSequenceEqual(u, (3.14159265358979,))
+
+    def test_list_len_0(self):
+        u = Unpacker()
+        u.feed(b"\x90")
+        self.safeSequenceEqual(u, ([],))
+
+    def test_list_len_1(self):
+        u = Unpacker()
+        u.feed(b"\x91\xc0")
+        self.safeSequenceEqual(u, ([None],))
+
+    def test_list_len_2(self):
+        u = Unpacker()
+        u.feed(b"\x92\xc0\xc0")
+        self.safeSequenceEqual(u, ([None, None],))
+
+    def test_list_inside_list(self):
+        u = Unpacker()
+        u.feed(b"\x92\x90\x90")
+        self.safeSequenceEqual(u, ([[], []],))
+
+    def test_main_page_example(self):
+        u = Unpacker()
+        u.feed(b"\x82\xa7compact\xc3\xa6schema\x00")
+        self.safeSequenceEqual(u, ({"compact": True, "schema": 0},))
+
+    def test_fixstr(self):
+        u = Unpacker()
+        for i in range(32):
+            u.feed(bytes([0xA0 + i] + [0x41] * i))
+        ref = tuple(["A" * i for i in range(32)])
+        self.safeSequenceEqual(u, ref)
+
+    def test_never_used(self):
+        u = Unpacker()
+        u.feed(b"\xc1")
+        with self.assertRaises(ValueError) as context:
+            next(u)
+        self.assertEqual(
+            str(context.exception), "amsgpack: 0xc1 byte must not be used"
+        )
+
+    def test_bin8(self):
+        u = Unpacker()
+        for i in range(2):
+            u.feed(bytes([0xC4, i] + [0x41] * i))
+        ref = tuple([b"A" * i for i in range(2)])
+        self.safeSequenceEqual(u, ref)
+
+    def test_bin8_splitted(self):
+        u = Unpacker()
+        for char in b"\xc4\x02\x03\x04":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (b"\x03\x04",))
+
+    def test_bin_malloc_failure(self):
+        u = Unpacker()
+        for char in b"\xc4\xffaaaaa":
+            u.feed(bytes((char,)))
+        u.feed(b"b" * 250)
+        with self.assertRaises(MemoryError), failing_malloc(20, "mem"):
+            self.safeSequenceEqual(u, (b"aaaaa" + b"b" * 250,))
+
+    def test_bin16(self):
+        u = Unpacker()
+        for i in range(256, 258):
+            u.feed(bytes([0xC5, 1, i - 256] + [0x41] * i))
+        ref = tuple([b"A" * i for i in range(256, 258)])
+        self.safeSequenceEqual(u, ref)
+
+    def test_bin32(self):
+        u = Unpacker()
+        for i in range(65536, 65538):
+            u.feed(bytes([0xC6, 0, 1, 0, i - 65536] + [0x41] * i))
+        ref = tuple([b"A" * i for i in range(65536, 65538)])
+        self.safeSequenceEqual(u, ref)
+
+    def test_ext_4(self):
+        ext = Ext(1, b"1234")
+        ref_bytes = packb(ext)
+        self.assertEqual(ref_bytes, b"\xd6\x011234")
+        u = Unpacker()
+        for char in ref_bytes:
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (ext,))
+
+    def test_dict_with_array_value(self):
+        self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
+        self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
+
+    def test_str8_split_in_1_byte(self):
+        u = Unpacker()
+        for char in b"\xd9\x01A":
+            u.feed(bytes((char,)))
+        self.assertEqual(list(u), ["A"])
+
+    def test_bin8_split_in_1_byte(self):
+        u = Unpacker()
+        for char in b"\xc4\x01A":
+            u.feed(bytes((char,)))
+        self.assertEqual(list(u), [b"A"])
+
+    def test_ext8_split_in_1_byte(self):
+        u = Unpacker()
+        for char in b"\xc7\x01\x02A":
+            u.feed(bytes((char,)))
+        self.assertEqual(list(u), [Ext(code=2, data=b"A")])
+
+    def test_str8_zero_size_in_the_middle(self):
+        u = Unpacker()
+        for seq in (b"|\xd9", b"\x00\x00"):
+            u.feed(seq)
+        self.assertEqual(list(u), [124, "", 0])
+
+    def test_bin_PyBytes_FromStringAndSize_malloc(self):
+        u = Unpacker()
+        u.feed(b"\xc6\x00\x01\x00\x00" + b"A" * 0x10000)
+        with self.assertRaises(MemoryError), failing_malloc(0x10000, "raw"):
+            next(u)
+
+    def test_bin_header_only(self):
+        u = Unpacker()
+        u.feed(b"\xc6")
+        with self.assertRaises(StopIteration):
+            next(u)
+
+    def test_feed_no_memory(self):
+        u = Unpacker()
+        with self.assertRaises(MemoryError), failing_malloc(9, "mem"):
+            u.feed(b"\xc6")
+
+
+class UnpackbIntTest(SequenceTestCase):
+    def test_uint_8_only_ont_byte_is_available(self):
+        u = Unpacker()
+        u.feed(b"\xcc")
+        self.safeSequenceEqual(u, ())
+
+    def test_uint_16(self):
+        u = Unpacker()
+        for char in b"\xcd\x00\x00\xcd\x00\xff\xcd\x01\x00\xcd\xff\xff":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF))
+
+    def test_uint_32(self):
+        u = Unpacker()
+        for (
+            char
+        ) in b"\xce\x00\x00\x00\x00\xce\x00\x00\x00\xff\xce\x00\x00\x01\x00\xce\x00\x00\xff\xff\xce\xff\xff\xff\xff":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF, 0xFFFFFFFF))
