@@ -205,6 +205,44 @@ class UnpackerTest(SequenceTestCase):
         with self.assertRaises(MemoryError), failing_malloc(9, "mem"):
             u.feed(b"\xc6")
 
+    def test_unpack_incorrect_dict(self):
+        with self.assertRaises(TypeError) as context:
+            unpackb(b"\x81\x80\x02")
+        self.assertEqual(str(context.exception), "unhashable type: 'dict'")
+
+
+class UnpackbTest(SequenceTestCase):
+    def test_memoryview(self):
+        one = unpackb(memoryview(b"\x01"))
+        self.assertEqual(one, 1)
+
+    def test_invalid_args(self):
+        with self.assertRaises(TypeError) as context:
+            unpackb(b"\xcc", 1)
+        self.assertEqual(
+            str(context.exception),
+            "unpackb() takes exactly 1 argument (2 given)",
+        )
+
+    def test_invalid_type(self):
+        with self.assertRaises(TypeError) as context:
+            unpackb("\xcc")
+        self.assertEqual(
+            str(context.exception), "an obj object is required, not 'str'"
+        )
+
+    def test_extra_data(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"\x01\x02")
+        self.assertEqual(str(context.exception), "Extra data")
+
+    def test_incomplete_data(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"\xcc")
+        self.assertEqual(
+            str(context.exception), "Incomplete Message Pack format"
+        )
+
 
 class UnpackbIntTest(SequenceTestCase):
     def test_uint_8_only_ont_byte_is_available(self):
