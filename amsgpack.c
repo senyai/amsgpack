@@ -400,7 +400,7 @@ parse_next:
     case '\xbe':
     case '\xbf': {  // fixstr
       Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x1f;
-      if (deque_has_n_next_byte(&self->deque, length + 1)) {
+      if (deque_has_next_n_bytes(&self->deque, length + 1)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, length);
         char* allocated = NULL;
@@ -432,9 +432,9 @@ parse_next:
     case '\xc6':  // bin 32
     {
       unsigned char const size_size = 1 << (next_byte - '\xc4');
-      if (deque_has_n_next_byte(&self->deque, 1 + size_size)) {
+      if (deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
         Py_ssize_t length = deque_peek_size(&self->deque, size_size);
-        if (deque_has_n_next_byte(&self->deque, 1 + size_size + length)) {
+        if (deque_has_next_n_bytes(&self->deque, 1 + size_size + length)) {
           deque_skip_size(&self->deque, size_size);
           if (length == 0) {
             parsed_object = PyBytes_FromStringAndSize(NULL, length);
@@ -471,13 +471,13 @@ parse_next:
     case '\xc9':  // ext 32
     {
       unsigned char const size_size = 1 << (next_byte - '\xc7');
-      if A_LIKELY(deque_has_n_next_byte(&self->deque, 1 + size_size + 1)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size + 1)) {
         Py_ssize_t const data_length = deque_peek_size(&self->deque, size_size);
         if A_UNLIKELY(data_length >= MiB128) {
           return NULL;
         }
-        if A_LIKELY(deque_has_n_next_byte(&self->deque,
-                                          1 + size_size + 1 + data_length)) {
+        if A_LIKELY(deque_has_next_n_bytes(&self->deque,
+                                           1 + size_size + 1 + data_length)) {
           deque_skip_size(&self->deque, size_size);
           char* data = deque_read_bytes_fast(&self->deque, data_length + 1);
           char* allocated = NULL;
@@ -519,7 +519,7 @@ parse_next:
     }
     case '\xd0':    // int_8
     case '\xcc': {  // uint_8
-      if (deque_has_n_next_byte(&self->deque, 2)) {
+      if (deque_has_next_n_bytes(&self->deque, 2)) {
         deque_advance_first_bytes(&self->deque, 1);
         char const byte = deque_peek_byte(&self->deque);
         long const value =
@@ -535,7 +535,7 @@ parse_next:
     }
     case '\xd1':    // int_16
     case '\xcd': {  // uint_16
-      if A_LIKELY(deque_has_n_next_byte(&self->deque, 3)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, 2);
         char* allocated = NULL;
@@ -566,7 +566,7 @@ parse_next:
     }
     case '\xd2':    // int_32
     case '\xce': {  // uint_32
-      if A_LIKELY(deque_has_n_next_byte(&self->deque, 5)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, 4);
         char* allocated = NULL;
@@ -598,7 +598,7 @@ parse_next:
     }
     case '\xd3':    // int_64
     case '\xcf': {  // uint_64
-      if A_LIKELY(deque_has_n_next_byte(&self->deque, 9)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 9)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, 8);
         char* allocated = NULL;
@@ -634,7 +634,7 @@ parse_next:
       return NULL;
     }
     case '\xca': {  // float (float_32)
-      if A_LIKELY(deque_has_n_next_byte(&self->deque, 5)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, 4);
         char* allocated = NULL;
@@ -664,7 +664,7 @@ parse_next:
       return NULL;
     }
     case '\xcb': {  // double (float_64)
-      if (deque_has_n_next_byte(&self->deque, 9)) {
+      if (deque_has_next_n_bytes(&self->deque, 9)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, 8);
         char* allocated = NULL;
@@ -703,7 +703,7 @@ parse_next:
     case '\xd8':  // fixext 16
     {
       Py_ssize_t const data_length = 1 << (next_byte - '\xd4');
-      if A_LIKELY(deque_has_n_next_byte(&self->deque, 2 + data_length)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + data_length)) {
         deque_advance_first_bytes(&self->deque, 1);
         char* data = deque_read_bytes_fast(&self->deque, data_length + 1);
         char* allocated = NULL;
@@ -742,10 +742,10 @@ parse_next:
     case '\xdb':  // str 32
     {
       unsigned char const size_size = 1 << (next_byte - '\xd9');
-      if A_LIKELY(deque_has_n_next_byte(&self->deque, 1 + size_size)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
         Py_ssize_t const length = deque_peek_size(&self->deque, size_size);
-        if A_LIKELY(deque_has_n_next_byte(&self->deque,
-                                          1 + size_size + length)) {
+        if A_LIKELY(deque_has_next_n_bytes(&self->deque,
+                                           1 + size_size + length)) {
           deque_skip_size(&self->deque, size_size);
           if (length == 0) {
             parsed_object = PyUnicode_FromStringAndSize(NULL, length);
@@ -781,7 +781,7 @@ parse_next:
     case '\xdd': {  // array 32
       Py_ssize_t length;
       if (next_byte == '\xdc') {  // array 16
-        if A_LIKELY(deque_has_n_next_byte(&self->deque, 3)) {
+        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
           deque_advance_first_bytes(&self->deque, 1);
           char* data = deque_read_bytes_fast(&self->deque, 2);
           char* allocated = NULL;
@@ -805,7 +805,7 @@ parse_next:
           return NULL;
         }
       } else {  // array 32
-        if A_LIKELY(deque_has_n_next_byte(&self->deque, 5)) {
+        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
           deque_advance_first_bytes(&self->deque, 1);
           char* data = deque_read_bytes_fast(&self->deque, 4);
           char* allocated = NULL;
@@ -856,7 +856,7 @@ parse_next:
     case '\xdf': {  // map 32
       Py_ssize_t length;
       if A_LIKELY(next_byte == '\xde') {
-        if A_LIKELY(deque_has_n_next_byte(&self->deque, 3)) {
+        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
           deque_advance_first_bytes(&self->deque, 1);
           char* data = deque_read_bytes_fast(&self->deque, 2);
           char* allocated = NULL;
@@ -880,7 +880,7 @@ parse_next:
           return NULL;
         }
       } else {
-        if A_LIKELY(deque_has_n_next_byte(&self->deque, 5)) {
+        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
           deque_advance_first_bytes(&self->deque, 1);
           char* data = deque_read_bytes_fast(&self->deque, 4);
           char* allocated = NULL;
