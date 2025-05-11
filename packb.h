@@ -100,7 +100,7 @@ pack_next:
     size += 9;
   } else if A_UNLIKELY(obj_type == &PyLong_Type) {
     // https://docs.python.org/3/c-api/long.html
-    long const value = PyLong_AsLong(obj);
+    long long const value = PyLong_AsLongLong(obj);
     if A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
       goto error;
     }
