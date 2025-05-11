@@ -84,7 +84,7 @@ static inline int deque_has_next_byte(Deque *deque) {
   return deque->pos < deque->size;
 }
 
-static inline int deque_has_n_next_byte(Deque const *deque, Py_ssize_t size) {
+static inline int deque_has_next_n_bytes(Deque const *deque, Py_ssize_t size) {
   return deque->pos + size <= deque->size;
 }
 
