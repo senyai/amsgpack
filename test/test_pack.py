@@ -159,9 +159,7 @@ class PackbIntTest(SequenceTestCase):
     def test_out_of_range(self):
         with self.assertRaises(OverflowError) as context:
             packb(0x1_FFFF_FFFFF_FFFF_FFFF)
-        self.assertEqual(
-            str(context.exception), "Python int too large to convert to C long"
-        )
+        self.assertEqual(str(context.exception), "int too big to convert")
 
     def test_i8(self):
         for ref in range(-0x80, -0x20):
