@@ -32,6 +32,11 @@ static int Ext_init(Ext *self, PyObject *args, PyObject *kwargs) {
   return 0;
 }
 
+static void Ext_dealloc(Ext *self) {
+  Py_XDECREF(self->data);
+  Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
 static Py_hash_t Ext_hash(Ext *self) {
   Py_hash_t const code_hash = (Py_hash_t)self->code;
   Py_hash_t const data_hash = PyObject_Hash(self->data);
@@ -55,6 +60,7 @@ static PyTypeObject Ext_Type = {
     .tp_basicsize = sizeof(Ext),
     .tp_doc = PyDoc_STR("ext type from msgpack specification"),
     .tp_new = PyType_GenericNew,
+    .tp_dealloc = (destructor)Ext_dealloc,
     .tp_init = (initproc)Ext_init,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_repr = (reprfunc)Ext_repr,

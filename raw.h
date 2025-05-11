@@ -27,6 +27,11 @@ static int Raw_init(Raw *self, PyObject *args, PyObject *kwargs) {
   return 0;
 }
 
+static void Raw_dealloc(Raw *self) {
+  Py_XDECREF(self->data);
+  Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
 static Py_hash_t Raw_hash(Raw *self) { return PyObject_Hash(self->data); }
 
 static PyObject *Raw_repr(Raw *self) {
@@ -42,6 +47,7 @@ static PyTypeObject Raw_Type = {
     .tp_basicsize = sizeof(Raw),
     .tp_doc = PyDoc_STR("Raw type for packb"),
     .tp_new = PyType_GenericNew,
+    .tp_dealloc = (destructor)Raw_dealloc,
     .tp_init = (initproc)Raw_init,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_repr = (reprfunc)Raw_repr,
