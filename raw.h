@@ -2,7 +2,7 @@
 #include <structmember.h>
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   PyObject *data;  // store PyBytes only
 } Raw;
 

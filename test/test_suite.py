@@ -82,7 +82,9 @@ def main():
     import json
 
     tests = json.loads(
-        (Path(__file__).parent / "msgpack-test-suite.json").read_text()
+        (Path(__file__).parent / "msgpack-test-suite.json").read_text(
+            encoding="utf-8"
+        )
     )
     for test_name, test_cases in tests.items():
         for idx, test_case in enumerate(test_cases):
