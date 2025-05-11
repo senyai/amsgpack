@@ -2,7 +2,7 @@
 #include <structmember.h>
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   char code;
   PyObject *data;
 } Ext;

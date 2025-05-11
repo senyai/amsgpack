@@ -7,3 +7,5 @@ SpaceBeforeParens: Custom
 ForEachMacros:
   - A_LIKELY
   - A_UNLIKELY
+StatementMacros:
+  - PyObject_HEAD

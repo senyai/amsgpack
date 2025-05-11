@@ -56,7 +56,7 @@ static inline int can_not_append_stack(Parser* parser) {
 }
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   Deque deque;
   Parser parser;
   int use_tuple;
