@@ -2,6 +2,7 @@
 /dist
 *.egg-info
 *.so
+*.pyd
 __pycache__
 # executable, produced by ./fuzzer.sh
 amsgpack_fuzzer
