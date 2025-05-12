@@ -145,7 +145,7 @@ PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
 static void Unpacker_dealloc(Unpacker* self) {
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
-    Py_ssize_t idx = self->parser.stack_length - 1;
+    Py_ssize_t const idx = self->parser.stack_length - 1;
     Py_DECREF(self->parser.stack[idx].sequence);
     Py_XDECREF(self->parser.stack[idx].key);
     memset(&self->parser.stack[idx], 0, sizeof(Stack));
@@ -433,7 +433,7 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xc4');
       if (deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
-        Py_ssize_t length = deque_peek_size(&self->deque, size_size);
+        Py_ssize_t const length = deque_peek_size(&self->deque, size_size);
         if (deque_has_next_n_bytes(&self->deque, 1 + size_size + length)) {
           deque_skip_size(&self->deque, size_size);
           if (length == 0) {
@@ -933,7 +933,7 @@ parse_next:
     }
   }
   while (self->parser.stack_length > 0) {
-    Stack* item = &self->parser.stack[self->parser.stack_length - 1];
+    Stack* const item = &self->parser.stack[self->parser.stack_length - 1];
     switch (item->action) {
       case SEQUENCE_APPEND:
         assert(item->pos < item->size);
