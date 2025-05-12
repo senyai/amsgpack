@@ -12,12 +12,12 @@ typedef struct BytesNode {
 } BytesNode;
 
 typedef struct {
-  BytesNode *deque_first;  // head
-  char *deque_bytes;       // head's bytes
-  Py_ssize_t size_first;   // head's size
-  BytesNode *deque_last;   // tail
-  Py_ssize_t size;         // number of bytes left
-  Py_ssize_t pos;          // position in the 'head'
+  BytesNode *deque_first;   // head
+  char const *deque_bytes;  // head's bytes
+  Py_ssize_t size_first;    // head's size
+  BytesNode *deque_last;    // tail
+  Py_ssize_t size;          // number of bytes left
+  Py_ssize_t pos;           // position in the 'head'
 } Deque;
 
 // safe to call, no memory is allocated, and `PyMem_Free` returns void,
@@ -89,8 +89,8 @@ static inline int deque_has_next_n_bytes(Deque const *deque, Py_ssize_t size) {
 }
 
 // returns non null pointer to data when data is available in de  deque's head
-static inline char *deque_read_bytes_fast(Deque *deque,
-                                          Py_ssize_t const requested_size) {
+static inline char const *deque_read_bytes_fast(
+    Deque *deque, Py_ssize_t const requested_size) {
   if ((deque->pos + requested_size) <= deque->size_first) {
     return deque->deque_bytes + deque->pos;
   }
