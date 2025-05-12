@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -e
-clang-format -i *.h amsgpack.c
+clang-format --verbose -i *.h amsgpack.c
 python3 -m black .
