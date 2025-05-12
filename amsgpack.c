@@ -474,7 +474,7 @@ parse_next:
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size + 1)) {
         Py_ssize_t const data_length = deque_peek_size(&self->deque, size_size);
         if A_UNLIKELY(data_length >= MiB128) {
-          return NULL;
+          return size_error("ext", data_length, MiB128);
         }
         if A_LIKELY(deque_has_next_n_bytes(&self->deque,
                                            1 + size_size + 1 + data_length)) {
