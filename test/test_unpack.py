@@ -263,3 +263,38 @@ class UnpackbIntTest(SequenceTestCase):
         ) in b"\xce\x00\x00\x00\x00\xce\x00\x00\x00\xff\xce\x00\x00\x01\x00\xce\x00\x00\xff\xff\xce\xff\xff\xff\xff":
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF, 0xFFFFFFFF))
+
+    def test_uint_32_not_ready(self):
+        u = Unpacker()
+        u.feed(b"\xce")
+        self.safeSequenceEqual(u, ())
+
+    def test_uint_64_sliced(self):
+        u = Unpacker()
+        for char in b"\xcf\x01\x02\x03\x04\x05\x06\x07\x08":
+            u.feed(bytes((char,)))
+        self.safeSequenceEqual(u, (0x0102030405060708,))
+
+    def test_uint_64_not_ready(self):
+        u = Unpacker()
+        u.feed(b"\xcf\x01\x02\x03\x04\x05\x06\x07")
+        self.safeSequenceEqual(u, ())
+
+
+class UnpackbFloatTest(SequenceTestCase):
+    def test_float32(self):
+        u = Unpacker()
+        u.feed(b"\xca\x44\xf8\x20\x54")
+        self.safeSequenceEqual(u, (1985.01025390625,))
+
+    def test_float32_sliced(self):
+        u = Unpacker()
+        u.feed(b"\xca\x44")
+        u.feed(b"\xf8\x20\x54")
+        self.safeSequenceEqual(u, (1985.01025390625,))
+
+    def test_float32_not_ready(self):
+        u = Unpacker()
+        u.feed(b"\xca\x44")
+        u.feed(b"\xf8\x20")
+        self.safeSequenceEqual(u, ())

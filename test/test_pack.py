@@ -2,6 +2,7 @@ from math import pi
 from amsgpack import packb, Ext, unpackb
 from struct import pack
 from .test_amsgpack import SequenceTestCase
+from .failing_malloc import failing_malloc
 
 
 class PackbTest(SequenceTestCase):
@@ -153,6 +154,10 @@ class PackbTest(SequenceTestCase):
         with self.assertRaises(ValueError) as context:
             packb(outer)
         self.assertEqual(str(context.exception), "Deeply nested object")
+
+    def test_initial_buffer_failure(self):
+        with self.assertRaises(MemoryError), failing_malloc(1023, "raw"):
+            packb(0)
 
 
 class PackbIntTest(SequenceTestCase):
