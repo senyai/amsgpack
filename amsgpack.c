@@ -493,17 +493,21 @@ parse_next:
           if (code == -1 &&
               (data_length == 8 || data_length == 4 || data_length == 12)) {
             parsed_object = ext_to_timestamp(data + 1, data_length);
-            if (parsed_object == NULL) {
+            if A_UNLIKELY(parsed_object == NULL) {
+              PyMem_Free(allocated);
               return NULL;  // likely overflow error
             }
           } else {
             Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
-            if (ext == NULL) {
+            if A_UNLIKELY(ext == NULL) {
+              PyMem_Free(allocated);
               return NULL;  // Allocation failed
             }
             ext->code = code;
             ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
-            if (ext->data == NULL) {
+            if A_UNLIKELY(ext->data == NULL) {
+              Py_DECREF(ext);
+              PyMem_Free(allocated);
               return NULL;
             }
             parsed_object = (PyObject*)ext;
