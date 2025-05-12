@@ -158,7 +158,9 @@ pack_next:
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size = 0;
     const char* u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
-    // ToDo: add error checking
+    if A_UNLIKELY(u8string == NULL) {
+      return NULL;
+    }
     if (u8size <= 0xf) {
       AMSGPACK_RESIZE(1 + u8size);
       data[size] = 0xa0 + u8size;
