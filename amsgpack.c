@@ -400,7 +400,7 @@ parse_next:
     case '\xbe':
     case '\xbf': {  // fixstr
       Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x1f;
-      if (deque_has_next_n_bytes(&self->deque, length + 1)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, length + 1)) {
         deque_advance_first_bytes(&self->deque, 1);
         char const* data = deque_read_bytes_fast(&self->deque, length);
         char* allocated = NULL;
@@ -416,7 +416,7 @@ parse_next:
         } else {
           PyMem_Free(allocated);
         }
-        if (parsed_object == NULL) {
+        if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
         }
         break;
