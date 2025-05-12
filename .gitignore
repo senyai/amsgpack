@@ -13,3 +13,6 @@ msgpack_benchmark.json
 *.gcno
 *.gcda
 /coverage
+*.log*
+# fuzzer corpus
+/corpus
