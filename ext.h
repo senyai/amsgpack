@@ -40,8 +40,9 @@ static void Ext_dealloc(Ext *self) {
 static Py_hash_t Ext_hash(Ext *self) {
   Py_hash_t const code_hash = (Py_hash_t)self->code;
   Py_hash_t const data_hash = PyObject_Hash(self->data);
-  Py_hash_t const hash = code_hash ^ (data_hash + 0x9e3779b9 +
-                                      (code_hash << 6) + (code_hash >> 2));
+  Py_hash_t const hash =
+      code_hash ^ (data_hash + 0x9e3779b9 + ((Py_uhash_t)code_hash << 6) +
+                   (code_hash >> 2));
 
   // Special case: if final hash is -1, return -2 instead
   // because -1 indicates error in Python's hash functions
