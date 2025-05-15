@@ -1,8 +1,9 @@
+from unittest import skipUnless
 from math import pi
 from amsgpack import packb, Ext, unpackb
 from struct import pack
 from .test_amsgpack import SequenceTestCase
-from .failing_malloc import failing_malloc
+from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 
 
 class PackbTest(SequenceTestCase):
@@ -155,6 +156,7 @@ class PackbTest(SequenceTestCase):
             packb(outer)
         self.assertEqual(str(context.exception), "Deeply nested object")
 
+    @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_initial_buffer_failure(self):
         with self.assertRaises(MemoryError), failing_malloc(1023, "raw"):
             packb(0)
@@ -164,7 +166,10 @@ class PackbIntTest(SequenceTestCase):
     def test_out_of_range(self):
         with self.assertRaises(OverflowError) as context:
             packb(0x1_FFFF_FFFFF_FFFF_FFFF)
-        self.assertEqual(str(context.exception), "int too big to convert")
+        self.assertIn(
+            str(context.exception),
+            ("int too big to convert", "integer too large"),
+        )
 
     def test_i8(self):
         for ref in range(-0x80, -0x20):

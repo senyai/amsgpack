@@ -1,6 +1,7 @@
 from amsgpack import packb, Unpacker, Ext, unpackb, Raw
-from .failing_malloc import failing_malloc
+from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 from .test_amsgpack import SequenceTestCase
+from unittest import skipUnless
 
 
 class UnpackerTest(SequenceTestCase):
@@ -129,6 +130,7 @@ class UnpackerTest(SequenceTestCase):
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (b"\x03\x04",))
 
+    @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_bin_malloc_failure(self):
         u = Unpacker()
         for char in b"\xc4\xffaaaaa":
@@ -188,6 +190,7 @@ class UnpackerTest(SequenceTestCase):
             u.feed(seq)
         self.assertEqual(list(u), [124, "", 0])
 
+    @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_bin_PyBytes_FromStringAndSize_malloc(self):
         u = Unpacker()
         u.feed(b"\xc6\x00\x01\x00\x00" + b"A" * 0x10000)
@@ -200,6 +203,7 @@ class UnpackerTest(SequenceTestCase):
         with self.assertRaises(StopIteration):
             next(u)
 
+    @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_feed_no_memory(self):
         u = Unpacker()
         with self.assertRaises(MemoryError), failing_malloc(9, "mem"):

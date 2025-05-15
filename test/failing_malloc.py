@@ -2,20 +2,22 @@ from __future__ import annotations
 from typing import Literal
 
 # import ctypes
+try:
+    from ctypes import pythonapi
+except ImportError:  # pypy
+    pythonapi = None
+AVAILABLE = pythonapi is not None
 from ctypes import (
     byref,
     c_size_t,
     c_void_p,
     cast as c_cast,
-    cdll,
     CFUNCTYPE,
     POINTER,
     pointer as c_pointer,
-    pythonapi,
     Structure as CStructure,
 )
 from contextlib import contextmanager
-from pathlib import Path
 
 # PYMEM_DOMAIN_RAW = 0
 # PYMEM_DOMAIN_MEM = 1
