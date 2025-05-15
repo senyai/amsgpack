@@ -27,6 +27,12 @@ static PyMethodDef AMsgPackMethods[] = {
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
+#ifndef PYPY_VERSION
+#define ANEW_DICT _PyDict_NewPresized
+#else
+#define ANEW_DICT(N) PyDict_New()
+#endif
+
 static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
                                              .m_name = "amsgpack",
                                              .m_doc = NULL,
@@ -284,7 +290,7 @@ parse_next:
   PyObject* parsed_object = NULL;
   switch (next_byte) {
     case '\x80': {
-      parsed_object = _PyDict_NewPresized(0);
+      parsed_object = ANEW_DICT(0);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
@@ -311,7 +317,7 @@ parse_next:
         return NULL;
       }
       Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x0f;
-      parsed_object = _PyDict_NewPresized(length);
+      parsed_object = ANEW_DICT(length);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
@@ -918,7 +924,7 @@ parse_next:
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      parsed_object = _PyDict_NewPresized(length);
+      parsed_object = ANEW_DICT(length);
       if (length == 0) {
         break;
       }
