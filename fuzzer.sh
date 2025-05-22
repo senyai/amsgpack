@@ -13,7 +13,8 @@ clang -DAMSGPACK_FUZZER=1\
     amsgpack.c $(python3-config --ldflags --embed) \
     -o amsgpack_fuzzer
 
-    ASAN_OPTIONS=symbolize=1:print_stacktrace=1,detect_leaks=1,log_path=amsgpack_leak.log ./amsgpack_fuzzer corpus
+mkdir -p corpus
+ASAN_OPTIONS=symbolize=1:print_stacktrace=1,detect_leaks=1,log_path=amsgpack_leak.log ./amsgpack_fuzzer corpus
 else
 gcc -DAMSGPACK_FUZZER=1 "-DAMSGPACK_FUZZER_MAIN=1" \
     -g3 -O0 \
