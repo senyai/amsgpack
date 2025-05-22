@@ -157,9 +157,20 @@ pack_next:
   } else if A_UNLIKELY(obj_type == &PyUnicode_Type) {
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size = 0;
-    const char* u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
+    char const* u8string = NULL;
+    if (A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj))) {
+      u8size = ((PyASCIIObject*)obj)->length;
+      u8string = (char*)(((PyASCIIObject*)obj) + 1);
+    } else {
+      u8size = ((PyCompactUnicodeObject*)obj)->utf8_length;
+      u8string = ((PyCompactUnicodeObject*)obj)->utf8;
+    }
+
     if A_UNLIKELY(u8string == NULL) {
-      return NULL;
+      u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
+      if A_UNLIKELY(u8string == NULL) {
+        return NULL;
+      }
     }
     if (u8size <= 0xf) {
       AMSGPACK_RESIZE(1 + u8size);
