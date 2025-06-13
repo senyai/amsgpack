@@ -362,7 +362,7 @@ parse_next:
                               ? ((PyListObject*)parsed_object)->ob_item
                               : ((PyTupleObject*)parsed_object)->ob_item;
 #else
-      PyObject** values = 0;
+      PyObject** values = NULL;
 #endif
       deque_advance_first_bytes(&self->deque, 1);
       if (length == 0) {
@@ -872,7 +872,7 @@ parse_next:
                               ? ((PyListObject*)parsed_object)->ob_item
                               : ((PyTupleObject*)parsed_object)->ob_item;
 #else
-      PyObject** values = 0;
+      PyObject** values = NULL;
 #endif
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = SEQUENCE_APPEND,

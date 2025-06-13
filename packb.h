@@ -72,11 +72,14 @@ static int64_t days_since_epoch(int year, int month, int day) {
 }
 
 typedef struct {
-  enum PackAction { LIST_NEXT, TUPLE_NEXT, KEY_NEXT, VALUE_NEXT } action;
-  PyObject* sequence;
+  enum PackAction { LIST_OR_TUPLE_NEXT, KEY_NEXT, VALUE_NEXT } action;
+  union {
+    PyObject* sequence;
+    PyObject** values;
+  };
   Py_ssize_t size;
   Py_ssize_t pos;
-  PyObject* value;
+  PyObject* value;  // holds value from PyDict_Next
 } PackbStack;
 
 static PyObject* packb(PyObject* Py_UNUSED(module), PyObject* obj) {
@@ -221,11 +224,20 @@ pack_next:
                       "List length is out of MessagePack range");
       goto error;
     }
-    stack[stack_length++] = (PackbStack){
-        .action = (obj_type == &PyList_Type ? LIST_NEXT : TUPLE_NEXT),
-        .sequence = obj,
-        .size = length,
-        .pos = 0};
+#ifndef PYPY_VERSION
+    PyObject** values = obj_type == &PyList_Type
+                            ? ((PyListObject*)obj)->ob_item
+                            : ((PyTupleObject*)obj)->ob_item;
+    stack[stack_length++] = (PackbStack){.action = LIST_OR_TUPLE_NEXT,
+                                         .values = values,
+                                         .size = length,
+                                         .pos = 0};
+#else
+    stack[stack_length++] = (PackbStack){.action = LIST_OR_TUPLE_NEXT,
+                                         .sequence = obj,
+                                         .size = length,
+                                         .pos = 0};
+#endif
   } else if A_UNLIKELY(obj_type == &PyDict_Type) {
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
@@ -385,21 +397,16 @@ pack_next:
   while (stack_length) {
     PackbStack* item = &stack[stack_length - 1];
     switch (item->action) {
-      case LIST_NEXT:
+      case LIST_OR_TUPLE_NEXT:
         if A_UNLIKELY(item->pos == item->size) {
           stack_length -= 1;
           break;
         }
-        obj = PyList_GET_ITEM(item->sequence, item->pos);
-        item->pos += 1;
-        goto pack_next;
-      case TUPLE_NEXT:
-        if A_UNLIKELY(item->pos == item->size) {
-          stack_length -= 1;
-          break;
-        }
-        obj = PyTuple_GET_ITEM(item->sequence, item->pos);
-        item->pos += 1;
+#ifndef PYPY_VERSION
+        obj = item->values[item->pos++];
+#else
+        obj = PySequence_GetItem(item->sequence, item->pos++);
+#endif
         goto pack_next;
       case KEY_NEXT:
         if A_UNLIKELY(item->pos == item->size) {
