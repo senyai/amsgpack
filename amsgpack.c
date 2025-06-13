@@ -357,6 +357,10 @@ parse_next:
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
+      deque_advance_first_bytes(&self->deque, 1);
+      if (length == 0) {
+        break;
+      }
 #ifndef PYPY_VERSION
       PyObject** values = self->use_tuple == 0
                               ? ((PyListObject*)parsed_object)->ob_item
@@ -364,10 +368,6 @@ parse_next:
 #else
       PyObject** values = NULL;
 #endif
-      deque_advance_first_bytes(&self->deque, 1);
-      if (length == 0) {
-        break;
-      }
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = SEQUENCE_APPEND,
                   .sequence = parsed_object,
