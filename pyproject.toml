@@ -23,3 +23,5 @@ classifiers = [
 "Source" = "https://github.com/senyai/amsgpack"
 [tool.black]
 line-length = 79
+[tool.setuptools.packages.find]
+include = ["amsgpack*"]
