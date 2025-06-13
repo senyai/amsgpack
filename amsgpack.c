@@ -154,11 +154,12 @@ PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
 static void Unpacker_dealloc(Unpacker* self) {
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
-    Py_ssize_t const idx = self->parser.stack_length - 1;
-    Py_DECREF(self->parser.stack[idx].sequence);
-    Py_XDECREF(self->parser.stack[idx].key);
-    memset(&self->parser.stack[idx], 0, sizeof(Stack));
-    self->parser.stack_length = idx;
+    Stack* item = self->parser.stack + (--self->parser.stack_length);
+    Py_DECREF(item->sequence);
+    if (item->action != SEQUENCE_APPEND) {
+      Py_XDECREF(item->key);
+    }
+    memset(item, 0, sizeof(Stack));
   }
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
