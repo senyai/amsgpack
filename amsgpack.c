@@ -367,7 +367,7 @@ parse_next:
                               ? ((PyListObject*)parsed_object)->ob_item
                               : ((PyTupleObject*)parsed_object)->ob_item;
 #else
-      PyObject** values = NULL;
+      PyObject** values = PySequence_Fast_ITEMS(parsed_object);
 #endif
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = SEQUENCE_APPEND,
@@ -873,7 +873,7 @@ parse_next:
                               ? ((PyListObject*)parsed_object)->ob_item
                               : ((PyTupleObject*)parsed_object)->ob_item;
 #else
-      PyObject** values = NULL;
+      PyObject** values = PySequence_Fast_ITEMS(parsed_object);
 #endif
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = SEQUENCE_APPEND,
@@ -967,11 +967,7 @@ parse_next:
     switch (item->action) {
       case SEQUENCE_APPEND:
         assert(item->pos < item->size);
-#ifndef PYPY_VERSION
         item->values[item->pos] = parsed_object;
-#else
-        PySequence_SetItem(item->sequence, item->pos, parsed_object);
-#endif
         item->pos += 1;
         if A_UNLIKELY(item->pos == item->size) {
           parsed_object = item->sequence;

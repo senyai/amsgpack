@@ -228,16 +228,13 @@ pack_next:
     PyObject** values = obj_type == &PyList_Type
                             ? ((PyListObject*)obj)->ob_item
                             : ((PyTupleObject*)obj)->ob_item;
+#else
+    PyObject** values = PySequence_Fast_ITEMS(obj);
+#endif
     stack[stack_length++] = (PackbStack){.action = LIST_OR_TUPLE_NEXT,
                                          .values = values,
                                          .size = length,
                                          .pos = 0};
-#else
-    stack[stack_length++] = (PackbStack){.action = LIST_OR_TUPLE_NEXT,
-                                         .sequence = obj,
-                                         .size = length,
-                                         .pos = 0};
-#endif
   } else if A_UNLIKELY(obj_type == &PyDict_Type) {
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
@@ -402,11 +399,7 @@ pack_next:
           stack_length -= 1;
           break;
         }
-#ifndef PYPY_VERSION
         obj = item->values[item->pos++];
-#else
-        obj = PySequence_GetItem(item->sequence, item->pos++);
-#endif
         goto pack_next;
       case KEY_NEXT:
         if A_UNLIKELY(item->pos == item->size) {
