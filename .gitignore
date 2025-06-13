@@ -16,3 +16,4 @@ msgpack_benchmark.json
 *.log*
 # fuzzer corpus
 /corpus
+/.venv*
