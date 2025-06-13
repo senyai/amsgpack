@@ -48,7 +48,10 @@ typedef struct {
   PyObject* sequence;
   Py_ssize_t size;
   Py_ssize_t pos;
-  PyObject* key;
+  union {
+    PyObject* key;
+    PyObject** values;  // SEQUENCE_APPEND only
+  };
 } Stack;
 
 typedef struct {
@@ -354,6 +357,13 @@ parse_next:
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
+#ifndef PYPY_VERSION
+      PyObject** values = self->use_tuple == 0
+                              ? ((PyListObject*)parsed_object)->ob_item
+                              : ((PyTupleObject*)parsed_object)->ob_item;
+#else
+      PyObject** values = 0;
+#endif
       deque_advance_first_bytes(&self->deque, 1);
       if (length == 0) {
         break;
@@ -361,7 +371,8 @@ parse_next:
       Stack const item = {.action = SEQUENCE_APPEND,
                           .sequence = parsed_object,
                           .size = length,
-                          .pos = 0};
+                          .pos = 0,
+                          .values = values};
       self->parser.stack[self->parser.stack_length++] = item;
       goto parse_next;
     }
@@ -856,10 +867,18 @@ parse_next:
       if (length == 0) {
         break;
       }
+#ifndef PYPY_VERSION
+      PyObject** values = self->use_tuple == 0
+                              ? ((PyListObject*)parsed_object)->ob_item
+                              : ((PyTupleObject*)parsed_object)->ob_item;
+#else
+      PyObject** values = 0;
+#endif
       Stack const item = {.action = SEQUENCE_APPEND,
                           .sequence = parsed_object,
                           .size = length,
-                          .pos = 0};
+                          .pos = 0,
+                          .values = values};
       self->parser.stack[self->parser.stack_length++] = item;
       goto parse_next;
     }
@@ -947,9 +966,13 @@ parse_next:
     switch (item->action) {
       case SEQUENCE_APPEND:
         assert(item->pos < item->size);
+#ifndef PYPY_VERSION
+        item->values[item->pos] = parsed_object;
+#else
         self->use_tuple == 0
             ? PyList_SET_ITEM(item->sequence, item->pos, parsed_object)
             : PyTuple_SET_ITEM(item->sequence, item->pos, parsed_object);
+#endif
         item->pos += 1;
         if A_UNLIKELY(item->pos == item->size) {
           parsed_object = item->sequence;
