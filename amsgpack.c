@@ -325,11 +325,11 @@ parse_next:
         return NULL;
       }
       deque_advance_first_bytes(&self->deque, 1);
-      Stack const item = {.action = DICT_KEY,
-                          .sequence = parsed_object,
-                          .size = length,
-                          .pos = 0};
-      self->parser.stack[self->parser.stack_length++] = item;
+      self->parser.stack[self->parser.stack_length++] =
+          (Stack){.action = DICT_KEY,
+                  .sequence = parsed_object,
+                  .size = length,
+                  .pos = 0};
       goto parse_next;
     }
     case '\x90':
@@ -368,12 +368,12 @@ parse_next:
       if (length == 0) {
         break;
       }
-      Stack const item = {.action = SEQUENCE_APPEND,
-                          .sequence = parsed_object,
-                          .size = length,
-                          .pos = 0,
-                          .values = values};
-      self->parser.stack[self->parser.stack_length++] = item;
+      self->parser.stack[self->parser.stack_length++] =
+          (Stack){.action = SEQUENCE_APPEND,
+                  .sequence = parsed_object,
+                  .size = length,
+                  .pos = 0,
+                  .values = values};
       goto parse_next;
     }
 
@@ -874,12 +874,12 @@ parse_next:
 #else
       PyObject** values = 0;
 #endif
-      Stack const item = {.action = SEQUENCE_APPEND,
-                          .sequence = parsed_object,
-                          .size = length,
-                          .pos = 0,
-                          .values = values};
-      self->parser.stack[self->parser.stack_length++] = item;
+      self->parser.stack[self->parser.stack_length++] =
+          (Stack){.action = SEQUENCE_APPEND,
+                  .sequence = parsed_object,
+                  .size = length,
+                  .pos = 0,
+                  .values = values};
       goto parse_next;
     }
     case '\xde':    // map 16
@@ -947,11 +947,11 @@ parse_next:
       if (length == 0) {
         break;
       }
-      Stack const item = {.action = DICT_KEY,
-                          .sequence = parsed_object,
-                          .size = length,
-                          .pos = 0};
-      self->parser.stack[self->parser.stack_length++] = item;
+      self->parser.stack[self->parser.stack_length++] =
+          (Stack){.action = DICT_KEY,
+                  .sequence = parsed_object,
+                  .size = length,
+                  .pos = 0};
       goto parse_next;
     }
     default: {

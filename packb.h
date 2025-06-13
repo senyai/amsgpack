@@ -221,12 +221,11 @@ pack_next:
                       "List length is out of MessagePack range");
       goto error;
     }
-    PackbStack const item = {
+    stack[stack_length++] = (PackbStack){
         .action = (obj_type == &PyList_Type ? LIST_NEXT : TUPLE_NEXT),
         .sequence = obj,
         .size = length,
         .pos = 0};
-    stack[stack_length++] = item;
   } else if A_UNLIKELY(obj_type == &PyDict_Type) {
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
@@ -252,9 +251,8 @@ pack_next:
                       "Dict length is out of MessagePack range");
       goto error;
     }
-    PackbStack const item = {
+    stack[stack_length++] = (PackbStack){
         .action = KEY_NEXT, .sequence = obj, .size = dict_size, .pos = 0};
-    stack[stack_length++] = item;
   } else if A_UNLIKELY(obj_type == &PyBytes_Type ||
                        obj_type == &PyByteArray_Type) {
     // https://docs.python.org/3.11/c-api/bytes.html
