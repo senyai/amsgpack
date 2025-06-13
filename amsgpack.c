@@ -969,9 +969,7 @@ parse_next:
 #ifndef PYPY_VERSION
         item->values[item->pos] = parsed_object;
 #else
-        self->use_tuple == 0
-            ? PyList_SET_ITEM(item->sequence, item->pos, parsed_object)
-            : PyTuple_SET_ITEM(item->sequence, item->pos, parsed_object);
+        PySequence_SetItem(item->sequence, item->pos, parsed_object);
 #endif
         item->pos += 1;
         if A_UNLIKELY(item->pos == item->size) {
