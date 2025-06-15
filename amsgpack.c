@@ -15,7 +15,7 @@ static PyObject* unpackb(PyObject* restrict _module, PyObject* restrict args,
 
 PyDoc_STRVAR(amsgpack_packb_doc,
              "packb($module, obj, /)\n--\n\n"
-             "Serialize ``obj`` to a MessagePack formatted ``bytearray``.");
+             "Serialize ``obj`` to a MessagePack formatted ``bytes``.");
 PyDoc_STRVAR(amsgpack_unpackb_doc,
              "unpackb($module, data, /, *, tuple: bool = True)\n--\n\n"
              "Deserialize ``data`` (a ``bytes`` object) to a Python object.");
