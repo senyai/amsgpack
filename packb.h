@@ -303,7 +303,7 @@ pack_next:
     data[size] = obj == Py_True ? '\xc3' : '\xc2';
     size += 1;
   } else if A_UNLIKELY(obj_type == &Ext_Type) {
-    Ext* ext = (Ext*)obj;
+    Ext const* ext = (Ext*)obj;
     Py_ssize_t const ext_data_length = PyBytes_GET_SIZE(ext->data);
     char const* data_bytes = PyBytes_AS_STRING(ext->data);
     char header = '\0';
