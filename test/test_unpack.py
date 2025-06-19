@@ -1,4 +1,4 @@
-from amsgpack import packb, Unpacker, Ext, unpackb, Raw
+from amsgpack import packb, Unpacker, Ext, unpackb
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 from .test_amsgpack import SequenceTestCase
 from unittest import skipUnless
@@ -166,12 +166,6 @@ class UnpackerTest(SequenceTestCase):
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
 
-    def test_str8_split_in_1_byte(self):
-        u = Unpacker()
-        for char in b"\xd9\x01A":
-            u.feed(bytes((char,)))
-        self.assertEqual(list(u), ["A"])
-
     def test_bin8_split_in_1_byte(self):
         u = Unpacker()
         for char in b"\xc4\x01A":
@@ -302,3 +296,31 @@ class UnpackbFloatTest(SequenceTestCase):
         u.feed(b"\xca\x44")
         u.feed(b"\xf8\x20")
         self.safeSequenceEqual(u, ())
+
+
+class UnpackbStrTest(SequenceTestCase):
+    def test_empty_str(self):
+        u = Unpacker()
+        u.feed(b"\xa0")
+        u.feed(b"\xd9\x00")
+        u.feed(b"\xda\x00\x00")
+        u.feed(b"\xdb\x00\x00\x00\x00")
+        self.safeSequenceEqual(u, ("",) * 4)
+
+    def test_str_not_ready(self):
+        u = Unpacker()
+        u.feed(b"\xd9\x01")
+        self.safeSequenceEqual(u, ())
+
+    def test_str_in_parts(self):
+        u = Unpacker()
+        u.feed(b"\xd9\x05")
+        u.feed(b"he")
+        u.feed(b"llo")
+        self.safeSequenceEqual(u, ("hello",))
+
+    def test_str8_split_in_1_byte(self):
+        u = Unpacker()
+        for char in b"\xd9\x01A":
+            u.feed(bytes((char,)))
+        self.assertEqual(list(u), ["A"])
