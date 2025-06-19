@@ -295,6 +295,8 @@ parse_next:
   // to allow passing length between switch cases
   union State {
     Py_ssize_t str_length;
+    Py_ssize_t arr_length;
+    Py_ssize_t map_length;
   } state;
   switch (next_byte) {
     case '\x80': {
@@ -357,13 +359,21 @@ parse_next:
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x0f;
-      parsed_object = (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
+      state.arr_length = Py_CHARMASK(next_byte) & 0x0f;
+      deque_advance_first_bytes(&self->deque, 1);
+      goto arr_length;
+    }
+    arr_length : {
+      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
+        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+        return NULL;
+      }
+      parsed_object =
+          (self->use_tuple == 0 ? PyList_New : PyTuple_New)(state.arr_length);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
-      deque_advance_first_bytes(&self->deque, 1);
-      if (length == 0) {
+      if (state.arr_length == 0) {
         break;
       }
 #ifndef PYPY_VERSION
@@ -376,7 +386,7 @@ parse_next:
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = SEQUENCE_APPEND,
                   .sequence = parsed_object,
-                  .size = length,
+                  .size = state.arr_length,
                   .pos = 0,
                   .values = values};
       goto parse_next;
@@ -781,88 +791,60 @@ parse_next:
       }
       return NULL;
     }
-    case '\xdc':    // array 16
+    case '\xdc': {  // array 16
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = deque_read_bytes_fast(&self->deque, 2);
+        char* allocated = NULL;
+        if A_UNLIKELY(data == NULL) {
+          data = allocated = deque_read_bytes(&self->deque, 2);
+          if A_UNLIKELY(allocated == NULL) {
+            return NULL;
+          }
+        }
+        A_WORD word;
+        word.bytes[0] = data[1];
+        word.bytes[1] = data[0];
+        state.arr_length = word.us;
+
+        if A_LIKELY(allocated == NULL) {
+          deque_advance_first_bytes(&self->deque, 2);
+        } else {
+          PyMem_Free(allocated);
+        }
+        goto arr_length;
+      }
+      return NULL;
+    }
     case '\xdd': {  // array 32
-      Py_ssize_t length;
-      if (next_byte == '\xdc') {  // array 16
-        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = deque_read_bytes_fast(&self->deque, 2);
-          char* allocated = NULL;
-          if A_UNLIKELY(data == NULL) {
-            data = allocated = deque_read_bytes(&self->deque, 2);
-            if A_UNLIKELY(allocated == NULL) {
-              return NULL;
-            }
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        char const* data = deque_read_bytes_fast(&self->deque, 4);
+        char* allocated = NULL;
+        if A_UNLIKELY(data == NULL) {
+          data = allocated = deque_read_bytes(&self->deque, 4);
+          if A_UNLIKELY(allocated == NULL) {
+            return NULL;
           }
-          A_WORD word;
-          word.bytes[0] = data[1];
-          word.bytes[1] = data[0];
-          length = word.us;
-
-          if A_LIKELY(allocated == NULL) {
-            deque_advance_first_bytes(&self->deque, 2);
-          } else {
-            PyMem_Free(allocated);
-          }
-        } else {
-          return NULL;
         }
-      } else {  // array 32
-        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          char const* data = deque_read_bytes_fast(&self->deque, 4);
-          char* allocated = NULL;
-          if A_UNLIKELY(data == NULL) {
-            data = allocated = deque_read_bytes(&self->deque, 4);
-            if A_UNLIKELY(allocated == NULL) {
-              return NULL;
-            }
-          }
-          A_DWORD word;
-          word.bytes[0] = data[3];
-          word.bytes[1] = data[2];
-          word.bytes[2] = data[1];
-          word.bytes[3] = data[0];
-          length = word.ul;
+        A_DWORD word;
+        word.bytes[0] = data[3];
+        word.bytes[1] = data[2];
+        word.bytes[2] = data[1];
+        word.bytes[3] = data[0];
+        state.arr_length = word.ul;
 
-          if A_LIKELY(allocated == NULL) {
-            deque_advance_first_bytes(&self->deque, 4);
-          } else {
-            PyMem_Free(allocated);
-          }
+        if A_LIKELY(allocated == NULL) {
+          deque_advance_first_bytes(&self->deque, 4);
         } else {
-          return NULL;
+          PyMem_Free(allocated);
         }
+        if A_UNLIKELY(state.arr_length > 10000000) {
+          return size_error("list", state.arr_length, 10000000);
+        }
+        goto arr_length;
       }
-      if A_UNLIKELY(length > 10000000) {
-        return size_error("list", length, 10000000);
-      }
-      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
-        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-        return NULL;
-      }
-      parsed_object = (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length);
-      if A_UNLIKELY(parsed_object == NULL) {
-        return NULL;
-      }
-      if (length == 0) {
-        break;
-      }
-#ifndef PYPY_VERSION
-      PyObject** values = self->use_tuple == 0
-                              ? ((PyListObject*)parsed_object)->ob_item
-                              : ((PyTupleObject*)parsed_object)->ob_item;
-#else
-      PyObject** values = PySequence_Fast_ITEMS(parsed_object);
-#endif
-      self->parser.stack[self->parser.stack_length++] =
-          (Stack){.action = SEQUENCE_APPEND,
-                  .sequence = parsed_object,
-                  .size = length,
-                  .pos = 0,
-                  .values = values};
-      goto parse_next;
+      return NULL;
     }
     case '\xde':    // map 16
     case '\xdf': {  // map 32
