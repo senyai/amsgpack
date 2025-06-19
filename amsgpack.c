@@ -41,6 +41,7 @@ static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
 
 static PyObject* msgpack_byte_object[256];
 #define EMPTY_TUPLE_IDX 0xc4
+#define EMPTY_STRING_IDX 0xa0
 static PyObject* epoch = NULL;
 
 typedef struct {
@@ -292,6 +293,10 @@ parse_next:
   }
   char const next_byte = deque_peek_byte(&self->deque);
   PyObject* parsed_object = NULL;
+  // to allow passing length between switch statements
+  union State {
+    Py_ssize_t str_length;
+  } state;
   switch (next_byte) {
     case '\x80': {
       parsed_object = ANEW_DICT(0);
@@ -417,27 +422,10 @@ parse_next:
     case '\xbd':
     case '\xbe':
     case '\xbf': {  // fixstr
-      Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x1f;
-      if A_LIKELY(deque_has_next_n_bytes(&self->deque, length + 1)) {
+      state.str_length = Py_CHARMASK(next_byte) & 0x1f;
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, state.str_length + 1)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, length);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, length);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-        parsed_object = PyUnicode_DecodeUTF8(data, length, NULL);
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, length);
-        } else {
-          PyMem_Free(allocated);
-        }
-        if A_UNLIKELY(parsed_object == NULL) {
-          return NULL;
-        }
-        break;
+        goto str_length;
       }
       return NULL;
     }
@@ -766,39 +754,39 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xd9');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
-        Py_ssize_t const length = deque_peek_size(&self->deque, size_size);
+        state.str_length = deque_peek_size(&self->deque, size_size);
         if A_LIKELY(deque_has_next_n_bytes(&self->deque,
-                                           1 + size_size + length)) {
+                                           1 + size_size + state.str_length)) {
           deque_skip_size(&self->deque, size_size);
-          if (length == 0) {
-            parsed_object = PyUnicode_FromStringAndSize(NULL, length);
-          } else {
-            if A_UNLIKELY(length > MiB128) {
-              return size_error("string", length, MiB128);
-            }
-
-            char const* data = deque_read_bytes_fast(&self->deque, length);
-            char* allocated = NULL;
-            if A_UNLIKELY(data == NULL) {
-              data = allocated = deque_read_bytes(&self->deque, length);
-              if A_UNLIKELY(allocated == NULL) {
-                return NULL;
-              }
-            }
-            parsed_object = PyUnicode_DecodeUTF8(data, length, NULL);
-            if A_LIKELY(allocated == NULL) {
-              deque_advance_first_bytes(&self->deque, length);
-            } else {
-              PyMem_Free(allocated);
-            }
+          if A_UNLIKELY(state.str_length == 0) {
+            parsed_object = msgpack_byte_object[EMPTY_STRING_IDX];
+            Py_INCREF(parsed_object);
+            break;
           }
-          if A_UNLIKELY(parsed_object == NULL) {
-            return NULL;
-          }
-          break;
+          goto str_length;
         }
       }
       return NULL;
+    }
+    str_length : {
+      char const* data = deque_read_bytes_fast(&self->deque, state.str_length);
+      char* allocated = NULL;
+      if A_UNLIKELY(data == NULL) {
+        data = allocated = deque_read_bytes(&self->deque, state.str_length);
+        if A_UNLIKELY(allocated == NULL) {
+          return NULL;
+        }
+      }
+      parsed_object = PyUnicode_DecodeUTF8(data, state.str_length, NULL);
+      if A_LIKELY(allocated == NULL) {
+        deque_advance_first_bytes(&self->deque, state.str_length);
+      } else {
+        PyMem_Free(allocated);
+      }
+      if A_UNLIKELY(parsed_object == NULL) {
+        return NULL;
+      }
+      break;
     }
     case '\xdc':    // array 16
     case '\xdd': {  // array 32
@@ -1015,10 +1003,15 @@ static int init_msgpack_byte_object() {
   int i = -32;
   for (; i != 128; ++i) {
     PyObject* number = PyLong_FromLong(i);
-    if (number == NULL) {
+    if A_UNLIKELY(number == NULL) {
       return -1;
     }
     msgpack_byte_object[(unsigned char)i] = number;
+  }
+  // fixstr of length 0
+  msgpack_byte_object[EMPTY_STRING_IDX] = PyUnicode_FromStringAndSize(NULL, 0);
+  if A_UNLIKELY(msgpack_byte_object[EMPTY_STRING_IDX] == NULL) {
+    return -1;
   }
   msgpack_byte_object[0xc0] = Py_None;
   Py_INCREF(Py_None);
@@ -1027,7 +1020,9 @@ static int init_msgpack_byte_object() {
   msgpack_byte_object[0xc3] = Py_True;
   Py_INCREF(Py_True);
   msgpack_byte_object[EMPTY_TUPLE_IDX] = PyTuple_New(0);  // amsgpack specific
-  Py_INCREF(msgpack_byte_object[EMPTY_TUPLE_IDX]);
+  if A_UNLIKELY(msgpack_byte_object[EMPTY_TUPLE_IDX] == NULL) {
+    return -1;
+  }
   return 0;
 }
 
