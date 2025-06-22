@@ -1024,7 +1024,9 @@ static int init_msgpack_byte_object() {
   msgpack_byte_object[0xc3] = Py_True;
   Py_INCREF(Py_True);
   msgpack_byte_object[EMPTY_TUPLE_IDX] = PyTuple_New(0);  // amsgpack specific
-  Py_INCREF(msgpack_byte_object[EMPTY_TUPLE_IDX]);
+  if A_UNLIKELY(msgpack_byte_object[EMPTY_TUPLE_IDX] == NULL) {
+    return -1;
+  }
   return 0;
 }
 
