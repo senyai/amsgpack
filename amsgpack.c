@@ -238,6 +238,26 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
     }                                                          \
   } while (0)
 
+#define READ_A_WORD                                            \
+  A_WORD word;                                                 \
+  do {                                                         \
+    char const* data = deque_read_bytes_fast(&self->deque, 2); \
+    char* allocated = NULL;                                    \
+    if A_UNLIKELY(data == NULL) {                              \
+      data = allocated = deque_read_bytes(&self->deque, 2);    \
+      if A_UNLIKELY(allocated == NULL) {                       \
+        return NULL;                                           \
+      }                                                        \
+    }                                                          \
+    word.bytes[0] = data[1];                                   \
+    word.bytes[1] = data[0];                                   \
+    if A_LIKELY(allocated == NULL) {                           \
+      deque_advance_first_bytes(&self->deque, 2);              \
+    } else {                                                   \
+      PyMem_Free(allocated);                                   \
+    }                                                          \
+  } while (0)
+
 static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   // timestamp case
   if (epoch == NULL) {  // initialize epoch
@@ -590,28 +610,11 @@ parse_next:
     case '\xcd': {  // uint_16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, 2);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, 2);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-
-        A_WORD word;
-        word.bytes[0] = data[1];
-        word.bytes[1] = data[0];
-
+        READ_A_WORD;
         parsed_object = next_byte == '\xcd' ? PyLong_FromLong((long)word.us)
                                             : PyLong_FromLong((long)word.s);
-        if (parsed_object == NULL) {
+        if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
-        }
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, 2);
-        } else {
-          PyMem_Free(allocated);
         }
         break;
       }
@@ -780,24 +783,8 @@ parse_next:
     case '\xdc': {  // array 16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, 2);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, 2);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-        A_WORD word;
-        word.bytes[0] = data[1];
-        word.bytes[1] = data[0];
+        READ_A_WORD;
         state.arr_length = word.us;
-
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, 2);
-        } else {
-          PyMem_Free(allocated);
-        }
         goto arr_length;
       }
       return NULL;
@@ -819,24 +806,8 @@ parse_next:
       if A_LIKELY(next_byte == '\xde') {
         if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
           deque_advance_first_bytes(&self->deque, 1);
-          char const* data = deque_read_bytes_fast(&self->deque, 2);
-          char* allocated = NULL;
-          if A_UNLIKELY(data == NULL) {
-            data = allocated = deque_read_bytes(&self->deque, 2);
-            if A_UNLIKELY(allocated == NULL) {
-              return NULL;
-            }
-          }
-          A_WORD word;
-          word.bytes[0] = data[1];
-          word.bytes[1] = data[0];
+          READ_A_WORD;
           state.map_length = word.us;
-
-          if A_LIKELY(allocated == NULL) {
-            deque_advance_first_bytes(&self->deque, 2);
-          } else {
-            PyMem_Free(allocated);
-          }
         } else {
           return NULL;
         }
@@ -848,9 +819,9 @@ parse_next:
         } else {
           return NULL;
         }
-      }
-      if A_UNLIKELY(state.map_length > 100000) {
-        return size_error("dict", state.map_length, 100000);
+        if A_UNLIKELY(state.map_length > 100000) {
+          return size_error("dict", state.map_length, 100000);
+        }
       }
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
