@@ -352,3 +352,11 @@ class UnpackbStrTest(SequenceTestCase):
         for char in b"\xd9\x01A":
             u.feed(bytes((char,)))
         self.assertEqual(list(u), ["A"])
+
+    def test_huge_string(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"\xdb\x0f\xff\xff\xff")
+        self.assertEqual(
+            str(context.exception),
+            "string size 268435455 is too big (>134217728)",
+        )

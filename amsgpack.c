@@ -747,6 +747,9 @@ parse_next:
       unsigned char const size_size = 1 << (next_byte - '\xd9');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
         state.str_length = deque_peek_size(&self->deque, size_size);
+        if A_UNLIKELY(state.str_length > MiB128) {
+          return size_error("string", state.str_length, MiB128);
+        }
         if A_LIKELY(deque_has_next_n_bytes(&self->deque,
                                            1 + size_size + state.str_length)) {
           deque_skip_size(&self->deque, size_size);
@@ -754,9 +757,6 @@ parse_next:
             parsed_object = msgpack_byte_object[EMPTY_STRING_IDX];
             Py_INCREF(parsed_object);
             break;
-          }
-          if A_UNLIKELY(state.str_length > MiB128) {
-            return size_error("string", state.str_length, MiB128);
           }
           goto str_length;
         }
