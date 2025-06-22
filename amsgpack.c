@@ -211,11 +211,8 @@ typedef union A_TIMESTAMP_96 {
 typedef char _check_timestamp_96_size[sizeof(A_TIMESTAMP_96) == 12 ? 1 : -1];
 
 static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
-  PyObject* errorMessage =
-      PyUnicode_FromFormat("%s size %z is too big (>%z)", type, length, limit);
-  PyErr_SetObject(PyExc_ValueError, errorMessage);
-  Py_XDECREF(errorMessage);
-  return NULL;
+  return PyErr_Format(PyExc_ValueError, "%s size %zd is too big (>%zd)", type,
+                      length, limit);
 }
 
 static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {

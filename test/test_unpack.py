@@ -76,21 +76,6 @@ class UnpackerTest(SequenceTestCase):
             u.feed(bytes((*pi_bytes[idx : idx + 2],)))
         self.safeSequenceEqual(u, (3.14159265358979,))
 
-    def test_list_len_0(self):
-        u = Unpacker()
-        u.feed(b"\x90")
-        self.safeSequenceEqual(u, ([],))
-
-    def test_list_len_1(self):
-        u = Unpacker()
-        u.feed(b"\x91\xc0")
-        self.safeSequenceEqual(u, ([None],))
-
-    def test_list_len_2(self):
-        u = Unpacker()
-        u.feed(b"\x92\xc0\xc0")
-        self.safeSequenceEqual(u, ([None, None],))
-
     def test_list_inside_list(self):
         u = Unpacker()
         u.feed(b"\x92\x90\x90")
@@ -162,10 +147,6 @@ class UnpackerTest(SequenceTestCase):
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (ext,))
 
-    def test_dict_with_array_value(self):
-        self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
-        self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
-
     def test_str8_split_in_1_byte(self):
         u = Unpacker()
         for char in b"\xd9\x01A":
@@ -208,11 +189,6 @@ class UnpackerTest(SequenceTestCase):
         u = Unpacker()
         with self.assertRaises(MemoryError), failing_malloc(9, "mem"):
             u.feed(b"\xc6")
-
-    def test_unpack_incorrect_dict(self):
-        with self.assertRaises(TypeError) as context:
-            unpackb(b"\x81\x80\x02")
-        self.assertEqual(str(context.exception), "unhashable type: 'dict'")
 
 
 class UnpackbTest(SequenceTestCase):
@@ -302,3 +278,46 @@ class UnpackbFloatTest(SequenceTestCase):
         u.feed(b"\xca\x44")
         u.feed(b"\xf8\x20")
         self.safeSequenceEqual(u, ())
+
+
+class UnpackbMapTest(SequenceTestCase):
+    def test_dict_with_array_value(self):
+        self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
+        self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
+
+    def test_unpack_incorrect_dict(self):
+        with self.assertRaises(TypeError) as context:
+            unpackb(b"\x81\x80\x02")
+        self.assertEqual(str(context.exception), "unhashable type: 'dict'")
+
+    def test_map_too_big(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"\xdf\xff\xff\xff\xff")
+        self.assertEqual(
+            str(context.exception), "dict size 4294967295 is too big (>100000)"
+        )
+
+
+class UnpackbArrayTest(SequenceTestCase):
+    def test_len_0(self):
+        u = Unpacker()
+        u.feed(b"\x90")
+        self.safeSequenceEqual(u, ([],))
+
+    def test_len_1(self):
+        u = Unpacker()
+        u.feed(b"\x91\xc0")
+        self.safeSequenceEqual(u, ([None],))
+
+    def test_len_2(self):
+        u = Unpacker()
+        u.feed(b"\x92\xc0\xc0")
+        self.safeSequenceEqual(u, ([None, None],))
+
+    def test_array_too_big(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"\xdd\xff\xff\xff\xff")
+        self.assertEqual(
+            str(context.exception),
+            "list size 4294967295 is too big (>10000000)",
+        )
