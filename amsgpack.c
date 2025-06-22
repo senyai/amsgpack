@@ -528,14 +528,14 @@ parse_next:
       unsigned char const size_size = 1 << (next_byte - '\xc4');
       if (deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
         Py_ssize_t const length = deque_peek_size(&self->deque, size_size);
+        if A_UNLIKELY(length > MiB128) {
+          return size_error("bytes", length, MiB128);
+        }
         if (deque_has_next_n_bytes(&self->deque, 1 + size_size + length)) {
           deque_skip_size(&self->deque, size_size);
-          if (length == 0) {
+          if A_UNLIKELY(length == 0) {
             parsed_object = PyBytes_FromStringAndSize(NULL, length);
           } else {
-            if A_UNLIKELY(length > MiB128) {
-              return size_error("bytes", length, MiB128);
-            }
             char const* data = deque_read_bytes_fast(&self->deque, length);
             char* allocated = NULL;
             if A_UNLIKELY(data == NULL) {
