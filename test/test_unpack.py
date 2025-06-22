@@ -301,18 +301,21 @@ class UnpackbMapTest(SequenceTestCase):
 class UnpackbArrayTest(SequenceTestCase):
     def test_len_0(self):
         u = Unpacker()
-        u.feed(b"\x90")
-        self.safeSequenceEqual(u, ([],))
+        for l0_bin in (b"\x90", b"\xdc\x00\x00", b"\xdd\x00\x00\x00\x00"):
+            u.feed(l0_bin)
+            self.safeSequenceEqual(u, ([],))
 
     def test_len_1(self):
         u = Unpacker()
-        u.feed(b"\x91\xc0")
-        self.safeSequenceEqual(u, ([None],))
+        for l1_bin in (b"\x91", b"\xdc\x00\x01", b"\xdd\x00\x00\x00\x01"):
+            u.feed(l1_bin + b"\xc0")
+            self.safeSequenceEqual(u, ([None],))
 
     def test_len_2(self):
         u = Unpacker()
-        u.feed(b"\x92\xc0\xc0")
-        self.safeSequenceEqual(u, ([None, None],))
+        for l2_bin in (b"\x92", b"\xdc\x00\x02", b"\xdd\x00\x00\x00\x02"):
+            u.feed(l2_bin + b"\xc0\xc0")
+            self.safeSequenceEqual(u, ([None, None],))
 
     def test_array_too_big(self):
         with self.assertRaises(ValueError) as context:
