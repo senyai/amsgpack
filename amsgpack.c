@@ -216,6 +216,28 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
                       length, limit);
 }
 
+#define READ_A_DWORD                                           \
+  A_DWORD dword;                                               \
+  do {                                                         \
+    char const* data = deque_read_bytes_fast(&self->deque, 4); \
+    char* allocated = NULL;                                    \
+    if A_UNLIKELY(data == NULL) {                              \
+      data = allocated = deque_read_bytes(&self->deque, 4);    \
+      if A_UNLIKELY(allocated == NULL) {                       \
+        return NULL;                                           \
+      }                                                        \
+    }                                                          \
+    dword.bytes[0] = data[3];                                  \
+    dword.bytes[1] = data[2];                                  \
+    dword.bytes[2] = data[1];                                  \
+    dword.bytes[3] = data[0];                                  \
+    if A_LIKELY(allocated == NULL) {                           \
+      deque_advance_first_bytes(&self->deque, 4);              \
+    } else {                                                   \
+      PyMem_Free(allocated);                                   \
+    }                                                          \
+  } while (0)
+
 static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   // timestamp case
   if (epoch == NULL) {  // initialize epoch
@@ -599,29 +621,11 @@ parse_next:
     case '\xce': {  // uint_32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, 4);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, 4);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-        A_DWORD dword;
-        dword.bytes[0] = data[3];
-        dword.bytes[1] = data[2];
-        dword.bytes[2] = data[1];
-        dword.bytes[3] = data[0];
-
+        READ_A_DWORD;
         parsed_object = next_byte == '\xce' ? PyLong_FromUnsignedLong(dword.ul)
                                             : PyLong_FromLong(dword.l);
         if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
-        }
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, 4);
-        } else {
-          PyMem_Free(allocated);
         }
         break;
       }
@@ -667,28 +671,10 @@ parse_next:
     case '\xca': {  // float (float_32)
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, 4);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, 4);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-        A_DWORD dword;
-        dword.bytes[0] = data[3];
-        dword.bytes[1] = data[2];
-        dword.bytes[2] = data[1];
-        dword.bytes[3] = data[0];
-
+        READ_A_DWORD;
         parsed_object = PyFloat_FromDouble((double)dword.f);
         if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
-        }
-        if A_UNLIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, 4);
-        } else {
-          PyMem_Free(allocated);
         }
         break;
       }
@@ -819,26 +805,8 @@ parse_next:
     case '\xdd': {  // array 32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, 4);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, 4);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-        A_DWORD word;
-        word.bytes[0] = data[3];
-        word.bytes[1] = data[2];
-        word.bytes[2] = data[1];
-        word.bytes[3] = data[0];
-        state.arr_length = word.ul;
-
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, 4);
-        } else {
-          PyMem_Free(allocated);
-        }
+        READ_A_DWORD;
+        state.arr_length = dword.ul;
         if A_UNLIKELY(state.arr_length > 10000000) {
           return size_error("list", state.arr_length, 10000000);
         }
@@ -875,26 +843,8 @@ parse_next:
       } else {
         if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
           deque_advance_first_bytes(&self->deque, 1);
-          char const* data = deque_read_bytes_fast(&self->deque, 4);
-          char* allocated = NULL;
-          if A_UNLIKELY(data == NULL) {
-            data = allocated = deque_read_bytes(&self->deque, 4);
-            if A_UNLIKELY(allocated == NULL) {
-              return NULL;
-            }
-          }
-          A_DWORD word;
-          word.bytes[0] = data[3];
-          word.bytes[1] = data[2];
-          word.bytes[2] = data[1];
-          word.bytes[3] = data[0];
-          state.map_length = word.ul;
-
-          if (allocated) {
-            PyMem_Free(allocated);
-          } else {
-            deque_advance_first_bytes(&self->deque, 4);
-          }
+          READ_A_DWORD;
+          state.map_length = dword.ul;
         } else {
           return NULL;
         }
