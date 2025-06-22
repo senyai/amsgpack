@@ -360,3 +360,13 @@ class UnpackbStrTest(SequenceTestCase):
             str(context.exception),
             "string size 268435455 is too big (>134217728)",
         )
+
+
+class UnpackbBinTest(SequenceTestCase):
+    def test_huge_data(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"\xc6\x0f\xff\xff\xff")
+        self.assertEqual(
+            str(context.exception),
+            "bytes size 268435455 is too big (>134217728)",
+        )
