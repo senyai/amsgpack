@@ -363,7 +363,7 @@ parse_next:
       deque_advance_first_bytes(&self->deque, 1);
       goto arr_length;
     }
-    arr_length : {
+    arr_length: {
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
@@ -429,7 +429,7 @@ parse_next:
       }
       return NULL;
     }
-    str_length : {
+    str_length: {
       char const* data = deque_read_bytes_fast(&self->deque, state.str_length);
       char* allocated = NULL;
       if A_UNLIKELY(data == NULL) {

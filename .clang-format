@@ -9,3 +9,4 @@ ForEachMacros:
   - A_UNLIKELY
 StatementMacros:
   - PyObject_HEAD
+SpaceBeforeInheritanceColon: false
