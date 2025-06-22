@@ -2,6 +2,7 @@ from amsgpack import packb, Unpacker, Ext, unpackb
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 from .test_amsgpack import SequenceTestCase
 from unittest import skipUnless
+from datetime import datetime, timezone
 
 
 class UnpackerTest(SequenceTestCase):
@@ -369,6 +370,14 @@ class UnpackbBinTest(SequenceTestCase):
         self.assertEqual(
             str(context.exception),
             "bytes size 268435455 is too big (>134217728)",
+        )
+
+
+class UnpackDateTimeTest(SequenceTestCase):
+    def test_authors_birthday(self):
+        self.assertEqual(
+            unpackb(b"\xd7\xff\x00\x00\x00\x00\x1c9\xdfp"),
+            datetime(1985, 1, 2, 23, 0, 0, tzinfo=timezone.utc),
         )
 
 
