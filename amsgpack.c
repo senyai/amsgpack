@@ -351,6 +351,7 @@ parse_next:
     Py_ssize_t str_length;
     Py_ssize_t arr_length;
     Py_ssize_t map_length;
+    Py_ssize_t ext_length;  // without code
   } state;
   switch (next_byte) {
     case '\x80': {
@@ -529,19 +530,19 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xc7');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size + 1)) {
-        Py_ssize_t const data_length = deque_peek_size(&self->deque, size_size);
-        if A_UNLIKELY(data_length >= MiB128) {
-          return size_error("ext", data_length, MiB128);
+        state.ext_length = deque_peek_size(&self->deque, size_size);
+        if A_UNLIKELY(state.ext_length >= MiB128) {
+          return size_error("ext", state.ext_length, MiB128);
         }
-        if A_LIKELY(deque_has_next_n_bytes(&self->deque,
-                                           1 + size_size + 1 + data_length)) {
+        if A_LIKELY(deque_has_next_n_bytes(
+                        &self->deque, 1 + size_size + 1 + state.ext_length)) {
           deque_skip_size(&self->deque, size_size);
-          READ_A_DATA(data_length + 1);
+          READ_A_DATA(state.ext_length + 1);
 
           char const code = data[0];
-          if (code == -1 &&
-              (data_length == 8 || data_length == 4 || data_length == 12)) {
-            parsed_object = ext_to_timestamp(data + 1, data_length);
+          if (code == -1 && (state.ext_length == 8 || state.ext_length == 4 ||
+                             state.ext_length == 12)) {
+            parsed_object = ext_to_timestamp(data + 1, state.ext_length);
             if A_UNLIKELY(parsed_object == NULL) {
               PyMem_Free(allocated);
               return NULL;  // likely overflow error
@@ -553,7 +554,7 @@ parse_next:
               return NULL;  // Allocation failed
             }
             ext->code = code;
-            ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
+            ext->data = PyBytes_FromStringAndSize(data + 1, state.ext_length);
             if A_UNLIKELY(ext->data == NULL) {
               Py_DECREF(ext);
               PyMem_Free(allocated);
@@ -561,7 +562,7 @@ parse_next:
             }
             parsed_object = (PyObject*)ext;
           }
-          FREE_A_DATA(data_length + 1);
+          FREE_A_DATA(state.ext_length + 1);
           break;
         }
       }
@@ -656,13 +657,13 @@ parse_next:
     case '\xd7':  // fixext 8
     case '\xd8':  // fixext 16
     {
-      Py_ssize_t const data_length = 1 << (next_byte - '\xd4');
-      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + data_length)) {
+      state.ext_length = 1 << (next_byte - '\xd4');
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + state.ext_length)) {
         deque_advance_first_bytes(&self->deque, 1);
-        READ_A_DATA(data_length + 1);
+        READ_A_DATA(state.ext_length + 1);
         char const code = data[0];
-        if (code == -1 && (data_length == 8 || data_length == 4)) {
-          parsed_object = ext_to_timestamp(data + 1, data_length);
+        if (code == -1 && (state.ext_length == 8 || state.ext_length == 4)) {
+          parsed_object = ext_to_timestamp(data + 1, state.ext_length);
           if (parsed_object == NULL) {
             PyMem_Free(allocated);
             return NULL;  // likely overflow error
@@ -674,7 +675,7 @@ parse_next:
             return NULL;  // Allocation failed
           }
           ext->code = code;
-          ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
+          ext->data = PyBytes_FromStringAndSize(data + 1, state.ext_length);
           if A_UNLIKELY(ext->data == NULL) {
             Py_DECREF(ext);
             PyMem_Free(allocated);
@@ -682,7 +683,7 @@ parse_next:
           }
           parsed_object = (PyObject*)ext;
         }
-        FREE_A_DATA(data_length + 1);
+        FREE_A_DATA(state.ext_length + 1);
         break;
       }
       return NULL;
