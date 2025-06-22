@@ -258,6 +258,32 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
     }                                                          \
   } while (0)
 
+#define READ_A_QWORD                                           \
+  A_QWORD qword;                                               \
+  do {                                                         \
+    char const* data = deque_read_bytes_fast(&self->deque, 8); \
+    char* allocated = NULL;                                    \
+    if A_UNLIKELY(data == NULL) {                              \
+      data = allocated = deque_read_bytes(&self->deque, 8);    \
+      if A_UNLIKELY(allocated == NULL) {                       \
+        return NULL;                                           \
+      }                                                        \
+    }                                                          \
+    qword.bytes[0] = data[7];                                  \
+    qword.bytes[1] = data[6];                                  \
+    qword.bytes[2] = data[5];                                  \
+    qword.bytes[3] = data[4];                                  \
+    qword.bytes[4] = data[3];                                  \
+    qword.bytes[5] = data[2];                                  \
+    qword.bytes[6] = data[1];                                  \
+    qword.bytes[7] = data[0];                                  \
+    if A_LIKELY(allocated == NULL) {                           \
+      deque_advance_first_bytes(&self->deque, 8);              \
+    } else {                                                   \
+      PyMem_Free(allocated);                                   \
+    }                                                          \
+  } while (0)
+
 static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
   // timestamp case
   if (epoch == NULL) {  // initialize epoch
@@ -638,34 +664,12 @@ parse_next:
     case '\xcf': {  // uint_64
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 9)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, 8);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, 8);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-        A_QWORD qword;
-        qword.bytes[0] = data[7];
-        qword.bytes[1] = data[6];
-        qword.bytes[2] = data[5];
-        qword.bytes[3] = data[4];
-        qword.bytes[4] = data[3];
-        qword.bytes[5] = data[2];
-        qword.bytes[6] = data[1];
-        qword.bytes[7] = data[0];
-
+        READ_A_QWORD;
         parsed_object = next_byte == '\xcf'
                             ? PyLong_FromUnsignedLongLong(qword.ull)
                             : PyLong_FromLongLong(qword.ll);
         if A_UNLIKELY(parsed_object == NULL) {
           return NULL;
-        }
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, 8);
-        } else {
-          PyMem_Free(allocated);
         }
         break;
       }
@@ -686,28 +690,7 @@ parse_next:
     case '\xcb': {  // double (float_64)
       if (deque_has_next_n_bytes(&self->deque, 9)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, 8);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, 8);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
-        A_QWORD qword;
-        qword.bytes[0] = data[7];
-        qword.bytes[1] = data[6];
-        qword.bytes[2] = data[5];
-        qword.bytes[3] = data[4];
-        qword.bytes[4] = data[3];
-        qword.bytes[5] = data[2];
-        qword.bytes[6] = data[1];
-        qword.bytes[7] = data[0];
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, 8);
-        } else {
-          PyMem_Free(allocated);
-        }
+        READ_A_QWORD;
         parsed_object = PyFloat_FromDouble(qword.d);
         if (parsed_object == NULL) {
           return NULL;
