@@ -349,6 +349,7 @@ parse_next:
   // to allow passing length between switch cases
   union State {
     Py_ssize_t str_length;
+    Py_ssize_t bin_length;
     Py_ssize_t arr_length;
     Py_ssize_t map_length;
     Py_ssize_t ext_length;  // without code
@@ -503,18 +504,19 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xc4');
       if (deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
-        Py_ssize_t const length = deque_peek_size(&self->deque, size_size);
-        if A_UNLIKELY(length > MiB128) {
-          return size_error("bytes", length, MiB128);
+        state.bin_length = deque_peek_size(&self->deque, size_size);
+        if A_UNLIKELY(state.bin_length > MiB128) {
+          return size_error("bytes", state.bin_length, MiB128);
         }
-        if (deque_has_next_n_bytes(&self->deque, 1 + size_size + length)) {
+        if (deque_has_next_n_bytes(&self->deque,
+                                   1 + size_size + state.bin_length)) {
           deque_skip_size(&self->deque, size_size);
-          if A_UNLIKELY(length == 0) {
-            parsed_object = PyBytes_FromStringAndSize(NULL, length);
+          if A_UNLIKELY(state.bin_length == 0) {
+            parsed_object = PyBytes_FromStringAndSize(NULL, state.bin_length);
           } else {
-            READ_A_DATA(length);
-            parsed_object = PyBytes_FromStringAndSize(data, length);
-            FREE_A_DATA(length);
+            READ_A_DATA(state.bin_length);
+            parsed_object = PyBytes_FromStringAndSize(data, state.bin_length);
+            FREE_A_DATA(state.bin_length);
           }
           if A_UNLIKELY(parsed_object == NULL) {
             return NULL;
