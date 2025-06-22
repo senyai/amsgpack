@@ -502,7 +502,7 @@ parse_next:
     case '\xc6':  // bin 32
     {
       unsigned char const size_size = 1 << (next_byte - '\xc4');
-      if (deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
         state.bin_length = deque_peek_size(&self->deque, size_size);
         if A_UNLIKELY(state.bin_length > MiB128) {
           return size_error("bytes", state.bin_length, MiB128);
