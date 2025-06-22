@@ -216,72 +216,58 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
                       length, limit);
 }
 
-#define READ_A_DWORD                                           \
-  A_DWORD dword;                                               \
-  do {                                                         \
-    char const* data = deque_read_bytes_fast(&self->deque, 4); \
-    char* allocated = NULL;                                    \
-    if A_UNLIKELY(data == NULL) {                              \
-      data = allocated = deque_read_bytes(&self->deque, 4);    \
-      if A_UNLIKELY(allocated == NULL) {                       \
-        return NULL;                                           \
-      }                                                        \
-    }                                                          \
-    dword.bytes[0] = data[3];                                  \
-    dword.bytes[1] = data[2];                                  \
-    dword.bytes[2] = data[1];                                  \
-    dword.bytes[3] = data[0];                                  \
-    if A_LIKELY(allocated == NULL) {                           \
-      deque_advance_first_bytes(&self->deque, 4);              \
-    } else {                                                   \
-      PyMem_Free(allocated);                                   \
-    }                                                          \
+#define READ_A_DATA(length)                                       \
+  char const* data = deque_read_bytes_fast(&self->deque, length); \
+  char* allocated = NULL;                                         \
+  if A_UNLIKELY(data == NULL) {                                   \
+    data = allocated = deque_read_bytes(&self->deque, length);    \
+    if A_UNLIKELY(allocated == NULL) {                            \
+      return NULL;                                                \
+    }                                                             \
+  }
+
+#define FREE_A_DATA(length)                            \
+  do {                                                 \
+    if A_LIKELY(allocated == NULL) {                   \
+      deque_advance_first_bytes(&self->deque, length); \
+    } else {                                           \
+      PyMem_Free(allocated);                           \
+    }                                                  \
   } while (0)
 
-#define READ_A_WORD                                            \
-  A_WORD word;                                                 \
-  do {                                                         \
-    char const* data = deque_read_bytes_fast(&self->deque, 2); \
-    char* allocated = NULL;                                    \
-    if A_UNLIKELY(data == NULL) {                              \
-      data = allocated = deque_read_bytes(&self->deque, 2);    \
-      if A_UNLIKELY(allocated == NULL) {                       \
-        return NULL;                                           \
-      }                                                        \
-    }                                                          \
-    word.bytes[0] = data[1];                                   \
-    word.bytes[1] = data[0];                                   \
-    if A_LIKELY(allocated == NULL) {                           \
-      deque_advance_first_bytes(&self->deque, 2);              \
-    } else {                                                   \
-      PyMem_Free(allocated);                                   \
-    }                                                          \
+#define READ_A_WORD          \
+  A_WORD word;               \
+  do {                       \
+    READ_A_DATA(2);          \
+    word.bytes[0] = data[1]; \
+    word.bytes[1] = data[0]; \
+    FREE_A_DATA(2);          \
   } while (0)
 
-#define READ_A_QWORD                                           \
-  A_QWORD qword;                                               \
-  do {                                                         \
-    char const* data = deque_read_bytes_fast(&self->deque, 8); \
-    char* allocated = NULL;                                    \
-    if A_UNLIKELY(data == NULL) {                              \
-      data = allocated = deque_read_bytes(&self->deque, 8);    \
-      if A_UNLIKELY(allocated == NULL) {                       \
-        return NULL;                                           \
-      }                                                        \
-    }                                                          \
-    qword.bytes[0] = data[7];                                  \
-    qword.bytes[1] = data[6];                                  \
-    qword.bytes[2] = data[5];                                  \
-    qword.bytes[3] = data[4];                                  \
-    qword.bytes[4] = data[3];                                  \
-    qword.bytes[5] = data[2];                                  \
-    qword.bytes[6] = data[1];                                  \
-    qword.bytes[7] = data[0];                                  \
-    if A_LIKELY(allocated == NULL) {                           \
-      deque_advance_first_bytes(&self->deque, 8);              \
-    } else {                                                   \
-      PyMem_Free(allocated);                                   \
-    }                                                          \
+#define READ_A_DWORD          \
+  A_DWORD dword;              \
+  do {                        \
+    READ_A_DATA(4);           \
+    dword.bytes[0] = data[3]; \
+    dword.bytes[1] = data[2]; \
+    dword.bytes[2] = data[1]; \
+    dword.bytes[3] = data[0]; \
+    FREE_A_DATA(4);           \
+  } while (0)
+
+#define READ_A_QWORD          \
+  A_QWORD qword;              \
+  do {                        \
+    READ_A_DATA(8);           \
+    qword.bytes[0] = data[7]; \
+    qword.bytes[1] = data[6]; \
+    qword.bytes[2] = data[5]; \
+    qword.bytes[3] = data[4]; \
+    qword.bytes[4] = data[3]; \
+    qword.bytes[5] = data[2]; \
+    qword.bytes[6] = data[1]; \
+    qword.bytes[7] = data[0]; \
+    FREE_A_DATA(8);           \
   } while (0)
 
 static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
@@ -498,20 +484,9 @@ parse_next:
       return NULL;
     }
     str_length: {
-      char const* data = deque_read_bytes_fast(&self->deque, state.str_length);
-      char* allocated = NULL;
-      if A_UNLIKELY(data == NULL) {
-        data = allocated = deque_read_bytes(&self->deque, state.str_length);
-        if A_UNLIKELY(allocated == NULL) {
-          return NULL;
-        }
-      }
+      READ_A_DATA(state.str_length);
       parsed_object = PyUnicode_DecodeUTF8(data, state.str_length, NULL);
-      if A_LIKELY(allocated == NULL) {
-        deque_advance_first_bytes(&self->deque, state.str_length);
-      } else {
-        PyMem_Free(allocated);
-      }
+      FREE_A_DATA(state.str_length);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
@@ -536,21 +511,9 @@ parse_next:
           if A_UNLIKELY(length == 0) {
             parsed_object = PyBytes_FromStringAndSize(NULL, length);
           } else {
-            char const* data = deque_read_bytes_fast(&self->deque, length);
-            char* allocated = NULL;
-            if A_UNLIKELY(data == NULL) {
-              data = allocated = deque_read_bytes(&self->deque, length);
-              if A_UNLIKELY(allocated == NULL) {
-                return NULL;
-              }
-            }
-
+            READ_A_DATA(length);
             parsed_object = PyBytes_FromStringAndSize(data, length);
-            if A_LIKELY(allocated == NULL) {
-              deque_advance_first_bytes(&self->deque, length);
-            } else {
-              PyMem_Free(allocated);
-            }
+            FREE_A_DATA(length);
           }
           if A_UNLIKELY(parsed_object == NULL) {
             return NULL;
@@ -573,15 +536,7 @@ parse_next:
         if A_LIKELY(deque_has_next_n_bytes(&self->deque,
                                            1 + size_size + 1 + data_length)) {
           deque_skip_size(&self->deque, size_size);
-          char const* data =
-              deque_read_bytes_fast(&self->deque, data_length + 1);
-          char* allocated = NULL;
-          if A_UNLIKELY(data == NULL) {
-            data = allocated = deque_read_bytes(&self->deque, data_length + 1);
-            if A_UNLIKELY(allocated == NULL) {
-              return NULL;
-            }
-          }
+          READ_A_DATA(data_length + 1);
 
           char const code = data[0];
           if (code == -1 &&
@@ -606,11 +561,7 @@ parse_next:
             }
             parsed_object = (PyObject*)ext;
           }
-          if A_LIKELY(allocated == NULL) {
-            deque_advance_first_bytes(&self->deque, data_length + 1);
-          } else {
-            PyMem_Free(allocated);
-          }
+          FREE_A_DATA(data_length + 1);
           break;
         }
       }
@@ -708,14 +659,7 @@ parse_next:
       Py_ssize_t const data_length = 1 << (next_byte - '\xd4');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + data_length)) {
         deque_advance_first_bytes(&self->deque, 1);
-        char const* data = deque_read_bytes_fast(&self->deque, data_length + 1);
-        char* allocated = NULL;
-        if A_UNLIKELY(data == NULL) {
-          data = allocated = deque_read_bytes(&self->deque, data_length + 1);
-          if A_UNLIKELY(allocated == NULL) {
-            return NULL;
-          }
-        }
+        READ_A_DATA(data_length + 1);
         char const code = data[0];
         if (code == -1 && (data_length == 8 || data_length == 4)) {
           parsed_object = ext_to_timestamp(data + 1, data_length);
@@ -731,11 +675,7 @@ parse_next:
           ext->data = PyBytes_FromStringAndSize(data + 1, data_length);
           parsed_object = (PyObject*)ext;
         }
-        if A_LIKELY(allocated == NULL) {
-          deque_advance_first_bytes(&self->deque, data_length + 1);
-        } else {
-          PyMem_Free(allocated);
-        }
+        FREE_A_DATA(data_length + 1);
         break;
       }
       return NULL;
