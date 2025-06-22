@@ -377,13 +377,13 @@ parse_next:
     case '\x8c':
     case '\x8d':
     case '\x8e':
-    case '\x8f': {  // fixmap
+    case '\x8f':  // fixmap
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      Py_ssize_t const length = Py_CHARMASK(next_byte) & 0x0f;
-      parsed_object = ANEW_DICT(length);
+      state.map_length = Py_CHARMASK(next_byte) & 0x0f;
+      parsed_object = ANEW_DICT(state.map_length);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
@@ -391,10 +391,9 @@ parse_next:
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = DICT_KEY,
                   .sequence = parsed_object,
-                  .size = length,
+                  .size = state.map_length,
                   .pos = 0};
       goto parse_next;
-    }
     case '\x90':
     case '\x91':
     case '\x92':
