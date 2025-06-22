@@ -224,7 +224,9 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
       return NULL;
     }
     PyTuple_SET_ITEM(args, 0, msgpack_byte_object[0]);
+    Py_INCREF(msgpack_byte_object[0]);
     PyTuple_SET_ITEM(args, 1, PyDateTime_TimeZone_UTC);
+    Py_INCREF(PyDateTime_TimeZone_UTC);
     epoch = PyDateTime_FromTimestamp(args);
     if A_UNLIKELY(epoch == NULL) {
       return NULL;
