@@ -20,7 +20,8 @@ class SuiteTest(TestCase):
 
     @classmethod
     def add_test(cls, name: str, ref: Any, test_case: list[bytes]):
-        if ref is OverflowError:
+        if isinstance(ref, type):
+            assert issubclass(ref, Exception), ref
             setattr(
                 cls,
                 f"test_{name}_exc".replace(".", "_").replace("-", "_"),
@@ -62,14 +63,16 @@ def _get_ref_value(data):
         case {"timestamp": [tv_sec, tv_nsec]}:
             assert isinstance(tv_sec, int)
             assert isinstance(tv_nsec, int)
-            if tv_sec < 0:
-                return OverflowError
+            microsecond = round(tv_nsec / 1000)
+            if microsecond == 1000000:
+                microsecond = 0
+                tv_sec += 1
             try:
                 return datetime.fromtimestamp(tv_sec, tz=timezone.utc).replace(
-                    microsecond=int(tv_nsec / 1000)
+                    microsecond=microsecond
                 )
             except Exception as e:
-                return OverflowError
+                return type(e)
         case {"ext": [code, data]}:
             assert isinstance(code, int)
             assert isinstance(data, str)

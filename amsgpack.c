@@ -42,7 +42,6 @@ static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
 static PyObject* msgpack_byte_object[256];
 #define EMPTY_TUPLE_IDX 0xc4
 #define EMPTY_STRING_IDX 0xa0
-static PyObject* epoch = NULL;
 
 typedef struct {
   enum UnpackAction { SEQUENCE_APPEND, DICT_KEY, DICT_VALUE } action;
@@ -201,16 +200,6 @@ typedef union A_QWORD {
 
 typedef char check_qword_size[sizeof(A_QWORD) == 8 ? 1 : -1];
 
-typedef union A_TIMESTAMP_96 {
-#pragma pack(4)
-  struct {
-    uint64_t seconds : 64;
-    uint32_t nanosec : 32;
-  };
-  char bytes[12];
-} A_TIMESTAMP_96;
-typedef char _check_timestamp_96_size[sizeof(A_TIMESTAMP_96) == 12 ? 1 : -1];
-
 static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
   return PyErr_Format(PyExc_ValueError, "%s size %zd is too big (>%zd)", type,
                       length, limit);
@@ -270,47 +259,48 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
     FREE_A_DATA(8);           \
   } while (0)
 
-static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
-  // timestamp case
-  if (epoch == NULL) {  // initialize epoch
-    PyObject* args = PyTuple_New(2);
-    if A_UNLIKELY(args == NULL) {
-      return NULL;
-    }
-    PyTuple_SET_ITEM(args, 0, msgpack_byte_object[0]);
-    Py_INCREF(msgpack_byte_object[0]);
-    PyTuple_SET_ITEM(args, 1, PyDateTime_TimeZone_UTC);
-    Py_INCREF(PyDateTime_TimeZone_UTC);
-    epoch = PyDateTime_FromTimestamp(args);
-    if A_UNLIKELY(epoch == NULL) {
-      return NULL;
-    }
-  }
-  int days = 0;
-  int seconds = 0;
-  int microseconds = 0;
+#pragma pack(push, 4)
+typedef union {
+  struct {
+    int64_t seconds : 64;
+    uint32_t nanosec : 32;
+  };
+  char bytes[12];
+} TIMESTAMP96;
+#pragma pack(pop)
+
+typedef char _check_timestamp_96_size[sizeof(TIMESTAMP96) == 12 ? 1 : -1];
+
+typedef struct {
+  int64_t seconds;
+  uint32_t nanosec;
+} MsgPackTimestamp;
+
+static inline MsgPackTimestamp parse_timestamp(char const* data,
+                                               Py_ssize_t data_length) {
+  MsgPackTimestamp timestamp;
   if (data_length == 8) {
-    unsigned char const* udata = (unsigned char const*)data;
-    uint32_t const msb =
-        (udata[0] << 24) | (udata[1] << 16) | (udata[2] << 8) | udata[3];
-    uint32_t const lsb =
-        (udata[4] << 24) | (udata[5] << 16) | (udata[6] << 8) | udata[7];
-    uint32_t const nanosec_30_bit = msb >> 2;
-    uint64_t const seconds_34_bit =
-        (((uint64_t)msb & 0x00000003) << 32) | (uint64_t)lsb;
-    days = seconds_34_bit / (60 * 60 * 24);
-    seconds = seconds_34_bit % (60 * 60 * 24);
-    microseconds = nanosec_30_bit / 1000;
+    A_QWORD timestamp64;
+    timestamp64.bytes[0] = data[7];
+    timestamp64.bytes[1] = data[6];
+    timestamp64.bytes[2] = data[5];
+    timestamp64.bytes[3] = data[4];
+    timestamp64.bytes[4] = data[3];
+    timestamp64.bytes[5] = data[2];
+    timestamp64.bytes[6] = data[1];
+    timestamp64.bytes[7] = data[0];
+    timestamp.seconds = timestamp64.ull & 0x3ffffffff;  // 34 bits
+    timestamp.nanosec = timestamp64.ull >> 34;          // 30 bits
   } else if (data_length == 4) {
     A_DWORD timestamp32;
     timestamp32.bytes[0] = data[3];
     timestamp32.bytes[1] = data[2];
     timestamp32.bytes[2] = data[1];
     timestamp32.bytes[3] = data[0];
-    days = timestamp32.ul / (60 * 60 * 24);
-    seconds = timestamp32.ul % (60 * 60 * 24);
+    timestamp.seconds = (int64_t)timestamp32.ul;
+    timestamp.nanosec = 0;
   } else if (data_length == 12) {
-    A_TIMESTAMP_96 timestamp96;
+    TIMESTAMP96 timestamp96;
     timestamp96.bytes[0] = data[11];
     timestamp96.bytes[1] = data[10];
     timestamp96.bytes[2] = data[9];
@@ -323,20 +313,90 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
     timestamp96.bytes[9] = data[2];
     timestamp96.bytes[10] = data[1];
     timestamp96.bytes[11] = data[0];
-    days = timestamp96.seconds / (60 * 60 * 24);
-    seconds = timestamp96.seconds % (60 * 60 * 24);
-    microseconds = timestamp96.nanosec / 1000;
-  } else {
+    timestamp.seconds = timestamp96.seconds;
+    timestamp.nanosec = timestamp96.nanosec;
+  } else {             // GCOVR_EXCL_LINE
     Py_UNREACHABLE();  // GCOVR_EXCL_LINE
   }
-  PyObject* delta = PyDelta_FromDSU(days, seconds, microseconds);
+  return timestamp;
+}
 
-  if A_UNLIKELY(delta == NULL) {
+#define DIV_ROUND_CLOSEST_POS(n, d) (((n) + (d) / 2) / (d))
+/* 2000-03-01 (mod 400 year, immediately after feb29 */
+#define LEAPOCH (946684800LL + 86400 * (31 + 29))
+#define DAYS_PER_400Y (365 * 400 + 97)
+#define DAYS_PER_100Y (365 * 100 + 24)
+#define DAYS_PER_4Y (365 * 4 + 1)
+
+static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
+  MsgPackTimestamp ts = parse_timestamp(data, data_length);
+  if A_UNLIKELY(ts.seconds < -62135596800 || ts.seconds > 253402300800) {
+    PyErr_SetString(PyExc_ValueError, "timestamp out of range");
     return NULL;
   }
-  PyObject* datetime_obj = PyNumber_Add(epoch, delta);
-  Py_XDECREF(delta);
-  return datetime_obj;
+  int64_t years, days, secs;
+  int micros = 0, months, remyears, remdays, remsecs;
+  int qc_cycles, c_cycles, q_cycles;
+
+  if (ts.nanosec != 0) {
+    micros = DIV_ROUND_CLOSEST_POS(ts.nanosec, 1000);
+    if (micros == 1000000) {
+      micros = 0;
+      ts.seconds++;
+    }
+  }
+
+  static const char days_in_month[] = {31, 30, 31, 30, 31, 31,
+                                       30, 31, 30, 31, 31, 29};
+
+  secs = ts.seconds - LEAPOCH;
+  days = secs / 86400;
+  remsecs = secs % 86400;
+  if (remsecs < 0) {
+    remsecs += 86400;
+    days--;
+  }
+
+  qc_cycles = days / DAYS_PER_400Y;
+  remdays = days % DAYS_PER_400Y;
+  if (remdays < 0) {
+    remdays += DAYS_PER_400Y;
+    qc_cycles--;
+  }
+
+  c_cycles = remdays / DAYS_PER_100Y;
+  if (c_cycles == 4) {
+    c_cycles--;
+  }
+  remdays -= c_cycles * DAYS_PER_100Y;
+
+  q_cycles = remdays / DAYS_PER_4Y;
+  if (q_cycles == 25) {
+    q_cycles--;
+  }
+  remdays -= q_cycles * DAYS_PER_4Y;
+
+  remyears = remdays / 365;
+  if (remyears == 4) {
+    remyears--;
+  }
+  remdays -= remyears * 365;
+
+  years = remyears + 4 * q_cycles + 100 * c_cycles + 400LL * qc_cycles;
+
+  for (months = 0; days_in_month[months] <= remdays; months++) {
+    remdays -= days_in_month[months];
+  }
+
+  if (months >= 10) {
+    months -= 12;
+    years++;
+  }
+
+  return PyDateTimeAPI->DateTime_FromDateAndTime(
+      years + 2000, months + 3, remdays + 1, remsecs / 3600, remsecs / 60 % 60,
+      remsecs % 60, micros, PyDateTime_TimeZone_UTC,
+      PyDateTimeAPI->DateTimeType);
 }
 
 static PyObject* Unpacker_iternext(Unpacker* self) {
@@ -817,7 +877,7 @@ parse_next:
         }
         goto parse_next;
       }
-      default:
+      default:             // GCOVR_EXCL_LINE
         Py_UNREACHABLE();  // GCOVR_EXCL_LINE
     }
   }
