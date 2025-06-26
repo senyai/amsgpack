@@ -438,22 +438,28 @@ parse_next:
     case '\x8d':
     case '\x8e':
     case '\x8f':  // fixmap
+      state.map_length = Py_CHARMASK(next_byte) & 0x0f;
+      deque_advance_first_bytes(&self->deque, 1);
+      goto map_length;
+    map_length: {
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      state.map_length = Py_CHARMASK(next_byte) & 0x0f;
       parsed_object = ANEW_DICT(state.map_length);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
-      deque_advance_first_bytes(&self->deque, 1);
+      if (state.map_length == 0) {
+        break;
+      }
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = DICT_KEY,
                   .sequence = parsed_object,
                   .size = state.map_length,
                   .pos = 0};
       goto parse_next;
+    }
     case '\x90':
     case '\x91':
     case '\x92':
@@ -789,42 +795,26 @@ parse_next:
       }
       return NULL;
     }
-    case '\xde':    // map 16
+    case '\xde': {  // map 16
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        READ_A_WORD;
+        state.map_length = word.us;
+        goto map_length;
+      }
+      return NULL;
+    }
     case '\xdf': {  // map 32
-      if A_LIKELY(next_byte == '\xde') {
-        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          READ_A_WORD;
-          state.map_length = word.us;
-        } else {
-          return NULL;
-        }
-      } else {
-        if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
-          deque_advance_first_bytes(&self->deque, 1);
-          READ_A_DWORD;
-          state.map_length = dword.ul;
-        } else {
-          return NULL;
-        }
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
+        deque_advance_first_bytes(&self->deque, 1);
+        READ_A_DWORD;
+        state.map_length = dword.ul;
         if A_UNLIKELY(state.map_length > 100000) {
           return size_error("dict", state.map_length, 100000);
         }
+        goto map_length;
       }
-      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
-        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-        return NULL;
-      }
-      parsed_object = ANEW_DICT(state.map_length);
-      if (state.map_length == 0) {
-        break;
-      }
-      self->parser.stack[self->parser.stack_length++] =
-          (Stack){.action = DICT_KEY,
-                  .sequence = parsed_object,
-                  .size = state.map_length,
-                  .pos = 0};
-      goto parse_next;
+      return NULL;
     }
     default: {
       parsed_object = msgpack_byte_object[(unsigned char)next_byte];
