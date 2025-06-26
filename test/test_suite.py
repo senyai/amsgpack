@@ -1,8 +1,11 @@
 from unittest import TestCase
 from amsgpack import Ext, unpackb
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
+from sys import platform
+
+is_windows = platform == "win32"
 
 
 class SuiteTest(TestCase):
@@ -63,16 +66,29 @@ def _get_ref_value(data):
         case {"timestamp": [tv_sec, tv_nsec]}:
             assert isinstance(tv_sec, int)
             assert isinstance(tv_nsec, int)
+            assert 0 <= tv_nsec <= 999999999
             microsecond = round(tv_nsec / 1000)
             if microsecond == 1000000:
                 microsecond = 0
                 tv_sec += 1
-            try:
-                return datetime.fromtimestamp(tv_sec, tz=timezone.utc).replace(
-                    microsecond=microsecond
-                )
-            except Exception as e:
-                return type(e)
+            if is_windows:
+                epoch = datetime.fromtimestamp(0, tz=timezone.utc)
+                try:
+                    dt = epoch + timedelta(seconds=tv_sec)
+                except OSError:  # windows only
+                    return ValueError
+                except Exception as e:
+                    if isinstance(e, OverflowError) and e.args == (
+                        "date value out of range",
+                    ):
+                        return ValueError
+                    return type(e)
+            else:
+                try:
+                    dt = datetime.fromtimestamp(tv_sec, tz=timezone.utc)
+                except Exception as e:
+                    return type(e)
+            return dt.replace(microsecond=microsecond)
         case {"ext": [code, data]}:
             assert isinstance(code, int)
             assert isinstance(data, str)
