@@ -470,10 +470,6 @@ parse_next:
     case '\x9d':
     case '\x9e':
     case '\x9f': {  // fixarray
-      if A_UNLIKELY(can_not_append_stack(&self->parser)) {
-        PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-        return NULL;
-      }
       state.arr_length = Py_CHARMASK(next_byte) & 0x0f;
       deque_advance_first_bytes(&self->deque, 1);
       goto arr_length;
