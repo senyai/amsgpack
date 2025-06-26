@@ -718,7 +718,7 @@ parse_next:
     case '\xd7':  // fixext 8
     case '\xd8':  // fixext 16
     {
-      state.ext_length = 1 << (next_byte - '\xd4');
+      state.ext_length = (Py_ssize_t)1 << (next_byte - '\xd4');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + state.ext_length)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DATA(state.ext_length + 1);

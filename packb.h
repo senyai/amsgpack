@@ -54,7 +54,9 @@ static inline void put9_dbl(char* dst, char header, double value) {
   dst[8] = ((char*)&value)[0];
 }
 
+// 60 * 60 * 24
 #define SECONDS_PER_DAY 86400
+// 365*400 + 97
 #define DAYS_PER_400_YEARS 146097
 
 static int64_t days_since_epoch(int year, int month, int day) {
@@ -116,22 +118,22 @@ pack_next:
       } else if (value <= 0xff) {
         // uint 8
         AMSGPACK_RESIZE(2);
-        put2(data + size, '\xcc', (char)value);
+        put2(data + size, '\xcc', (uint8_t)value);
         size += 2;
       } else if (value <= 0xffff) {
         // unit 16
         AMSGPACK_RESIZE(3);
-        put3(data + size, '\xcd', value);
+        put3(data + size, '\xcd', (uint16_t)value);
         size += 3;
       } else if (value <= 0xffffffff) {
         // unit 32
         AMSGPACK_RESIZE(5);
-        put5(data + size, '\xce', value);
+        put5(data + size, '\xce', (uint32_t)value);
         size += 5;
       } else {
         // uint 64
         AMSGPACK_RESIZE(9);
-        put9(data + size, '\xcf', value);
+        put9(data + size, '\xcf', (uint64_t)value);
         size += 9;
       }
     } else {
@@ -143,17 +145,17 @@ pack_next:
       } else if (value >= -0x8000) {
         // int 16
         AMSGPACK_RESIZE(3);
-        put3(data + size, '\xd1', (unsigned short)value);
+        put3(data + size, '\xd1', (uint16_t)value);
         size += 3;
       } else if (value >= -0x80000000LL) {
         // int 32
         AMSGPACK_RESIZE(5);
-        put5(data + size, '\xd2', (unsigned int)value);
+        put5(data + size, '\xd2', (uint32_t)value);
         size += 5;
       } else {
         // int 64
         AMSGPACK_RESIZE(9);
-        put9(data + size, '\xd3', value);
+        put9(data + size, '\xd3', (uint64_t)value);
         size += 9;
       }
     }
@@ -177,19 +179,19 @@ pack_next:
     }
     if (u8size <= 0xf) {
       AMSGPACK_RESIZE(1 + u8size);
-      data[size] = 0xa0 + u8size;
+      data[size] = '\xa0' + (char)u8size;
       size += 1;
     } else if (u8size <= 0xff) {
       AMSGPACK_RESIZE(2 + u8size);
-      put2(data + size, '\xd9', (char)u8size);
+      put2(data + size, '\xd9', (uint8_t)u8size);
       size += 2;
     } else if (u8size <= 0xffff) {
       AMSGPACK_RESIZE(3 + u8size);
-      put3(data + size, '\xda', (unsigned short)u8size);
+      put3(data + size, '\xda', (uint16_t)u8size);
       size += 3;
     } else if (u8size <= 0xffffffff) {
       AMSGPACK_RESIZE(5 + u8size);
-      put5(data + size, '\xdb', u8size);
+      put5(data + size, '\xdb', (uint32_t)u8size);
       size += 5;
     } else {
       PyErr_SetString(PyExc_ValueError,
@@ -213,11 +215,11 @@ pack_next:
       size += 1;
     } else if (length <= 0xffff) {
       AMSGPACK_RESIZE(3);
-      put3(data + size, '\xdc', (unsigned short)length);
+      put3(data + size, '\xdc', (uint16_t)length);
       size += 3;
     } else if (length <= 0xffffffff) {
       AMSGPACK_RESIZE(5);
-      put5(data + size, '\xdd', (unsigned int)length);
+      put5(data + size, '\xdd', (uint32_t)length);
       size += 5;
     } else {
       PyErr_SetString(PyExc_ValueError,
@@ -245,15 +247,15 @@ pack_next:
 
     if (dict_size <= 15) {
       AMSGPACK_RESIZE(1);
-      data[size] = 0x80 + dict_size;
+      data[size] = '\x80' + (char)dict_size;
       size += 1;
     } else if (dict_size <= 0xffff) {
       AMSGPACK_RESIZE(3);
-      put3(data + size, '\xde', (unsigned short)dict_size);
+      put3(data + size, '\xde', (uint16_t)dict_size);
       size += 3;
     } else if (dict_size <= 0xffffffff) {
       AMSGPACK_RESIZE(5);
-      put5(data + size, '\xdf', (unsigned int)dict_size);
+      put5(data + size, '\xdf', (uint32_t)dict_size);
       size += 5;
     } else {
       PyErr_SetString(PyExc_ValueError,
@@ -277,15 +279,15 @@ pack_next:
     }
     if (bytes_size <= 0xff) {
       AMSGPACK_RESIZE(2 + bytes_size);
-      put2(data + size, '\xc4', bytes_size);
+      put2(data + size, '\xc4', (uint8_t)bytes_size);
       size += 2;
     } else if (bytes_size <= 0xffff) {
       AMSGPACK_RESIZE(3 + bytes_size);
-      put3(data + size, '\xc5', bytes_size);
+      put3(data + size, '\xc5', (uint16_t)bytes_size);
       size += 3;
     } else if (bytes_size <= 0xffffffff) {
       AMSGPACK_RESIZE(5 + bytes_size);
-      put5(data + size, '\xc6', (unsigned int)bytes_size);
+      put5(data + size, '\xc6', (uint32_t)bytes_size);
       size += 5;
     } else {
       PyErr_SetString(PyExc_ValueError,
@@ -326,15 +328,15 @@ pack_next:
       default:
         if (ext_data_length <= 0xff) {
           AMSGPACK_RESIZE(2 + 1 + ext_data_length);
-          put2(data + size, '\xc7', ext_data_length);
+          put2(data + size, '\xc7', (uint8_t)ext_data_length);
           size += 2;
         } else if (ext_data_length <= 0xffff) {
           AMSGPACK_RESIZE(3 + 1 + ext_data_length);
-          put3(data + size, '\xc8', ext_data_length);
+          put3(data + size, '\xc8', (uint16_t)ext_data_length);
           size += 3;
         } else if (ext_data_length <= 0xffffffff) {
           AMSGPACK_RESIZE(5 + 1 + ext_data_length);
-          put5(data + size, '\xc9', ext_data_length);
+          put5(data + size, '\xc9', (uint32_t)ext_data_length);
           size += 5;
         } else {
           PyErr_SetString(PyExc_TypeError, "Ext() length is too large");
