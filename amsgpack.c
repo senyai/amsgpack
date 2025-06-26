@@ -98,7 +98,8 @@ static PyMethodDef Unpacker_Methods[] = {
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
-PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwargs) {
+static PyObject* Unpacker_new(PyTypeObject* type, PyObject* args,
+                              PyObject* kwargs) {
   static char* keywords[] = {"tuple", NULL};
   int use_tuple = 0;
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:Unpacker", keywords,
@@ -118,8 +119,8 @@ PyObject* Unpacker_new(PyTypeObject* type, PyObject* args, PyObject* kwargs) {
   return (PyObject*)self;
 }
 
-PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
-                           PyObject* kwargs) {
+static PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
+                                  PyObject* kwargs) {
   PyObject* file = NULL;
   PyObject* read_size = NULL;
   if (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
