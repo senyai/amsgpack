@@ -18,11 +18,13 @@ if sys.platform != "win32":
             "-Werror",
             "-Wall",
             "-Wextra",
-            "-Wpedantic",
             "-Wdouble-promotion",
             "-march=native",
         ]
     )
+    if not hasattr(sys, "pypy_version_info"):
+        # because PyPy/3.11.11/x64/include/pypy3.11/genericaliasobject.h
+        extra_compile_args.append("-Wpedantic")
 
 module = Extension(
     "amsgpack",
