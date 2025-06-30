@@ -183,6 +183,10 @@ typedef union A_WORD {
 } A_WORD;
 typedef char check_word_size[sizeof(A_WORD) == 2 ? 1 : -1];
 
+static inline A_WORD read_a_word(char const* data) {
+  return (A_WORD){.bytes = {data[1], data[0]}};
+}
+
 typedef union A_DWORD {
   int32_t l;
   uint32_t ul;
@@ -192,12 +196,21 @@ typedef union A_DWORD {
 
 typedef char check_dword_size[sizeof(A_DWORD) == 4 ? 1 : -1];
 
+static inline A_DWORD read_a_dword(char const* data) {
+  return (A_DWORD){.bytes = {data[3], data[2], data[1], data[0]}};
+}
+
 typedef union A_QWORD {
   int64_t ll;
   uint64_t ull;
   double d;
   char bytes[8];
 } A_QWORD;
+
+static inline A_QWORD read_a_qword(char const* data) {
+  return (A_QWORD){.bytes = {data[7], data[6], data[5], data[4], data[3],
+                             data[2], data[1], data[0]}};
+}
 
 typedef char check_qword_size[sizeof(A_QWORD) == 8 ? 1 : -1];
 
@@ -225,39 +238,28 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
     }                                                  \
   } while (0)
 
-#define READ_A_WORD          \
-  A_WORD word;               \
-  do {                       \
-    READ_A_DATA(2);          \
-    word.bytes[0] = data[1]; \
-    word.bytes[1] = data[0]; \
-    FREE_A_DATA(2);          \
+#define READ_A_WORD           \
+  A_WORD word;                \
+  do {                        \
+    READ_A_DATA(2);           \
+    word = read_a_word(data); \
+    FREE_A_DATA(2);           \
   } while (0)
 
-#define READ_A_DWORD          \
-  A_DWORD dword;              \
-  do {                        \
-    READ_A_DATA(4);           \
-    dword.bytes[0] = data[3]; \
-    dword.bytes[1] = data[2]; \
-    dword.bytes[2] = data[1]; \
-    dword.bytes[3] = data[0]; \
-    FREE_A_DATA(4);           \
+#define READ_A_DWORD            \
+  A_DWORD dword;                \
+  do {                          \
+    READ_A_DATA(4);             \
+    dword = read_a_dword(data); \
+    FREE_A_DATA(4);             \
   } while (0)
 
-#define READ_A_QWORD          \
-  A_QWORD qword;              \
-  do {                        \
-    READ_A_DATA(8);           \
-    qword.bytes[0] = data[7]; \
-    qword.bytes[1] = data[6]; \
-    qword.bytes[2] = data[5]; \
-    qword.bytes[3] = data[4]; \
-    qword.bytes[4] = data[3]; \
-    qword.bytes[5] = data[2]; \
-    qword.bytes[6] = data[1]; \
-    qword.bytes[7] = data[0]; \
-    FREE_A_DATA(8);           \
+#define READ_A_QWORD            \
+  A_QWORD qword;                \
+  do {                          \
+    READ_A_DATA(8);             \
+    qword = read_a_qword(data); \
+    FREE_A_DATA(8);             \
   } while (0)
 
 #pragma pack(push, 4)
@@ -281,39 +283,17 @@ static inline MsgPackTimestamp parse_timestamp(char const* data,
                                                Py_ssize_t data_length) {
   MsgPackTimestamp timestamp;
   if (data_length == 8) {
-    A_QWORD timestamp64;
-    timestamp64.bytes[0] = data[7];
-    timestamp64.bytes[1] = data[6];
-    timestamp64.bytes[2] = data[5];
-    timestamp64.bytes[3] = data[4];
-    timestamp64.bytes[4] = data[3];
-    timestamp64.bytes[5] = data[2];
-    timestamp64.bytes[6] = data[1];
-    timestamp64.bytes[7] = data[0];
+    A_QWORD const timestamp64 = read_a_qword(data);
     timestamp.seconds = timestamp64.ull & 0x3ffffffff;  // 34 bits
     timestamp.nanosec = timestamp64.ull >> 34;          // 30 bits
   } else if (data_length == 4) {
-    A_DWORD timestamp32;
-    timestamp32.bytes[0] = data[3];
-    timestamp32.bytes[1] = data[2];
-    timestamp32.bytes[2] = data[1];
-    timestamp32.bytes[3] = data[0];
+    A_DWORD const timestamp32 = read_a_dword(data);
     timestamp.seconds = (int64_t)timestamp32.ul;
     timestamp.nanosec = 0;
   } else if (data_length == 12) {
-    TIMESTAMP96 timestamp96;
-    timestamp96.bytes[0] = data[11];
-    timestamp96.bytes[1] = data[10];
-    timestamp96.bytes[2] = data[9];
-    timestamp96.bytes[3] = data[8];
-    timestamp96.bytes[4] = data[7];
-    timestamp96.bytes[5] = data[6];
-    timestamp96.bytes[6] = data[5];
-    timestamp96.bytes[7] = data[4];
-    timestamp96.bytes[8] = data[3];
-    timestamp96.bytes[9] = data[2];
-    timestamp96.bytes[10] = data[1];
-    timestamp96.bytes[11] = data[0];
+    TIMESTAMP96 const timestamp96 = {
+        .bytes = {data[11], data[10], data[9], data[8], data[7], data[6],
+                  data[5], data[4], data[3], data[2], data[1], data[0]}};
     timestamp.seconds = timestamp96.seconds;
     timestamp.nanosec = timestamp96.nanosec;
   } else {             // GCOVR_EXCL_LINE
