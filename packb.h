@@ -1,3 +1,6 @@
+#include <datetime.h>
+
+#include "ext.h"
 #include "raw.h"
 
 #define AMSGPACK_RESIZE(n)                                        \
