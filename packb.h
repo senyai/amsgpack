@@ -16,13 +16,13 @@ static inline void put2(char* dst, char header, char value) {
   dst[1] = value;
 }
 
-static inline void put3(char* dst, char header, unsigned short value) {
+static inline void put3(char* dst, char header, uint16_t value) {
   dst[0] = header;
   dst[1] = ((char*)&value)[1];
   dst[2] = ((char*)&value)[0];
 }
 
-static inline void put5(char* dst, char header, unsigned int value) {
+static inline void put5(char* dst, char header, uint32_t value) {
   dst[0] = header;
   dst[1] = ((char*)&value)[3];
   dst[2] = ((char*)&value)[2];
@@ -30,28 +30,24 @@ static inline void put5(char* dst, char header, unsigned int value) {
   dst[4] = ((char*)&value)[0];
 }
 
-static inline void put9(char* dst, char header, unsigned long long value) {
+static inline void put9_bytes(char* dst, char header, char const* data) {
   dst[0] = header;
-  dst[1] = ((char*)&value)[7];
-  dst[2] = ((char*)&value)[6];
-  dst[3] = ((char*)&value)[5];
-  dst[4] = ((char*)&value)[4];
-  dst[5] = ((char*)&value)[3];
-  dst[6] = ((char*)&value)[2];
-  dst[7] = ((char*)&value)[1];
-  dst[8] = ((char*)&value)[0];
+  dst[1] = data[7];
+  dst[2] = data[6];
+  dst[3] = data[5];
+  dst[4] = data[4];
+  dst[5] = data[3];
+  dst[6] = data[2];
+  dst[7] = data[1];
+  dst[8] = data[0];
+}
+
+static inline void put9(char* dst, char header, uint64_t value) {
+  put9_bytes(dst, header, (char const*)&value);
 }
 
 static inline void put9_dbl(char* dst, char header, double value) {
-  dst[0] = header;
-  dst[1] = ((char*)&value)[7];
-  dst[2] = ((char*)&value)[6];
-  dst[3] = ((char*)&value)[5];
-  dst[4] = ((char*)&value)[4];
-  dst[5] = ((char*)&value)[3];
-  dst[6] = ((char*)&value)[2];
-  dst[7] = ((char*)&value)[1];
-  dst[8] = ((char*)&value)[0];
+  put9_bytes(dst, header, (char const*)&value);
 }
 
 // 60 * 60 * 24
