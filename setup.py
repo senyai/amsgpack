@@ -18,6 +18,7 @@ if sys.platform != "win32":
             "-Werror",
             "-Wall",
             "-Wextra",
+            "-Wpedantic",
             "-Wdouble-promotion",
             "-march=native",
         ]
