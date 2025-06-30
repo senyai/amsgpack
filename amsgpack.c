@@ -416,14 +416,13 @@ parse_next:
     Py_ssize_t ext_length;  // without code
   } state;
   switch (next_byte) {
-    case '\x80': {
+    case '\x80':
       parsed_object = ANEW_DICT(0);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
       deque_advance_first_bytes(&self->deque, 1);
       break;
-    }
     case '\x81':
     case '\x82':
     case '\x83':
@@ -539,14 +538,13 @@ parse_next:
     case '\xbc':
     case '\xbd':
     case '\xbe':
-    case '\xbf': {  // fixstr
+    case '\xbf':  // fixstr
       state.str_length = Py_CHARMASK(next_byte) & 0x1f;
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, state.str_length + 1)) {
         deque_advance_first_bytes(&self->deque, 1);
         goto str_length;
       }
       return NULL;
-    }
     str_length: {
       READ_A_DATA(state.str_length);
       parsed_object = PyUnicode_DecodeUTF8(data, state.str_length, NULL);
@@ -556,10 +554,9 @@ parse_next:
       }
       break;
     }
-    case '\xc1': {  // (never used)
+    case '\xc1':  // (never used)
       PyErr_SetString(PyExc_ValueError, "amsgpack: 0xc1 byte must not be used");
       return NULL;
-    }
     case '\xc4':  // bin 8
     case '\xc5':  // bin 16
     case '\xc6':  // bin 32
@@ -632,8 +629,8 @@ parse_next:
       }
       return NULL;
     }
-    case '\xd0':    // int_8
-    case '\xcc': {  // uint_8
+    case '\xd0':  // int_8
+    case '\xcc':  // uint_8
       if (deque_has_next_n_bytes(&self->deque, 2)) {
         deque_advance_first_bytes(&self->deque, 1);
         char const byte = deque_peek_byte(&self->deque);
@@ -647,9 +644,8 @@ parse_next:
         break;
       }
       return NULL;
-    }
-    case '\xd1':    // int_16
-    case '\xcd': {  // uint_16
+    case '\xd1':  // int_16
+    case '\xcd':  // uint_16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_WORD;
@@ -661,9 +657,8 @@ parse_next:
         break;
       }
       return NULL;
-    }
-    case '\xd2':    // int_32
-    case '\xce': {  // uint_32
+    case '\xd2':  // int_32
+    case '\xce':  // uint_32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DWORD;
@@ -675,9 +670,8 @@ parse_next:
         break;
       }
       return NULL;
-    }
-    case '\xd3':    // int_64
-    case '\xcf': {  // uint_64
+    case '\xd3':  // int_64
+    case '\xcf':  // uint_64
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 9)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_QWORD;
@@ -690,8 +684,7 @@ parse_next:
         break;
       }
       return NULL;
-    }
-    case '\xca': {  // float (float_32)
+    case '\xca':  // float (float_32)
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DWORD;
@@ -702,8 +695,7 @@ parse_next:
         break;
       }
       return NULL;
-    }
-    case '\xcb': {  // double (float_64)
+    case '\xcb':  // double (float_64)
       if (deque_has_next_n_bytes(&self->deque, 9)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_QWORD;
@@ -714,13 +706,11 @@ parse_next:
         break;
       }
       return NULL;
-    }
     case '\xd4':  // fixext 1
     case '\xd5':  // fixext 2
     case '\xd6':  // fixext 4
     case '\xd7':  // fixext 8
     case '\xd8':  // fixext 16
-    {
       state.ext_length = (Py_ssize_t)1 << (next_byte - '\xd4');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + state.ext_length)) {
         deque_advance_first_bytes(&self->deque, 1);
@@ -751,7 +741,6 @@ parse_next:
         break;
       }
       return NULL;
-    }
     case '\xd9':  // str 8
     case '\xda':  // str 16
     case '\xdb':  // str 32
@@ -775,7 +764,7 @@ parse_next:
       }
       return NULL;
     }
-    case '\xdc': {  // array 16
+    case '\xdc':  // array 16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_WORD;
@@ -783,8 +772,7 @@ parse_next:
         goto arr_length;
       }
       return NULL;
-    }
-    case '\xdd': {  // array 32
+    case '\xdd':  // array 32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DWORD;
@@ -795,8 +783,7 @@ parse_next:
         goto arr_length;
       }
       return NULL;
-    }
-    case '\xde': {  // map 16
+    case '\xde':  // map 16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_WORD;
@@ -804,8 +791,7 @@ parse_next:
         goto map_length;
       }
       return NULL;
-    }
-    case '\xdf': {  // map 32
+    case '\xdf':  // map 32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DWORD;
@@ -816,13 +802,11 @@ parse_next:
         goto map_length;
       }
       return NULL;
-    }
-    default: {
+    default:
       parsed_object = msgpack_byte_object[(unsigned char)next_byte];
       assert(parsed_object != NULL);
       deque_advance_first_bytes(&self->deque, 1);
       Py_INCREF(parsed_object);
-    }
   }
   while (self->parser.stack_length > 0) {
     Stack* const item = &self->parser.stack[self->parser.stack_length - 1];
