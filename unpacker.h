@@ -440,33 +440,7 @@ parse_next:
         if A_LIKELY(deque_has_next_n_bytes(
                         &self->deque, 1 + size_size + 1 + state.ext_length)) {
           deque_skip_size(&self->deque, size_size);
-          READ_A_DATA(state.ext_length + 1);
-
-          char const code = data[0];
-          if (code == -1 && (state.ext_length == 8 || state.ext_length == 4 ||
-                             state.ext_length == 12)) {
-            parsed_object = ext_to_timestamp(data + 1, state.ext_length);
-            if A_UNLIKELY(parsed_object == NULL) {
-              PyMem_Free(allocated);
-              return NULL;  // likely overflow error
-            }
-          } else {
-            Ext* ext = PyObject_New(Ext, self->state->ext_type);
-            if A_UNLIKELY(ext == NULL) {
-              PyMem_Free(allocated);
-              return NULL;  // Allocation failed
-            }
-            ext->code = code;
-            ext->data = PyBytes_FromStringAndSize(data + 1, state.ext_length);
-            if A_UNLIKELY(ext->data == NULL) {
-              Py_DECREF(ext);
-              PyMem_Free(allocated);
-              return NULL;
-            }
-            parsed_object = (PyObject*)ext;
-          }
-          FREE_A_DATA(state.ext_length + 1);
-          break;
+          goto ext_length;
         }
       }
       return NULL;
@@ -556,33 +530,37 @@ parse_next:
       state.ext_length = (Py_ssize_t)1 << (next_byte - '\xd4');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + state.ext_length)) {
         deque_advance_first_bytes(&self->deque, 1);
-        READ_A_DATA(state.ext_length + 1);
-        char const code = data[0];
-        if (code == -1 && (state.ext_length == 8 || state.ext_length == 4)) {
-          parsed_object = ext_to_timestamp(data + 1, state.ext_length);
-          if (parsed_object == NULL) {
-            PyMem_Free(allocated);
-            return NULL;  // likely overflow error
-          }
-        } else {
-          Ext* ext = PyObject_New(Ext, self->state->ext_type);
-          if A_UNLIKELY(ext == NULL) {
-            PyMem_Free(allocated);
-            return NULL;  // Allocation failed
-          }
-          ext->code = code;
-          ext->data = PyBytes_FromStringAndSize(data + 1, state.ext_length);
-          if A_UNLIKELY(ext->data == NULL) {
-            Py_DECREF(ext);
-            PyMem_Free(allocated);
-            return NULL;
-          }
-          parsed_object = (PyObject*)ext;
-        }
-        FREE_A_DATA(state.ext_length + 1);
-        break;
+        goto ext_length;
       }
       return NULL;
+    ext_length: {
+      READ_A_DATA(state.ext_length + 1);
+      char const code = data[0];
+      if (code == -1 && (state.ext_length == 8 || state.ext_length == 4 ||
+                         state.ext_length == 12)) {
+        parsed_object = ext_to_timestamp(data + 1, state.ext_length);
+        if A_UNLIKELY(parsed_object == NULL) {
+          PyMem_Free(allocated);
+          return NULL;  // likely overflow error
+        }
+      } else {
+        Ext* ext = PyObject_New(Ext, self->state->ext_type);
+        if A_UNLIKELY(ext == NULL) {
+          PyMem_Free(allocated);
+          return NULL;  // Allocation failed
+        }
+        ext->code = code;
+        ext->data = PyBytes_FromStringAndSize(data + 1, state.ext_length);
+        if A_UNLIKELY(ext->data == NULL) {
+          Py_DECREF(ext);
+          PyMem_Free(allocated);
+          return NULL;
+        }
+        parsed_object = (PyObject*)ext;
+      }
+      FREE_A_DATA(state.ext_length + 1);
+      break;
+    }
     case '\xd9':  // str 8
     case '\xda':  // str 16
     case '\xdb':  // str 32
