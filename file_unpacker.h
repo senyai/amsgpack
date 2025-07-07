@@ -8,6 +8,7 @@ typedef struct {
 
 static PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
                                   PyObject* kwargs) {
+  PyObject* no_args = PyTuple_New(0);
   PyObject* file = NULL;
   PyObject* read_size = NULL;
   if (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
@@ -28,8 +29,11 @@ static PyObject* FileUnpacker_new(PyTypeObject* type, PyObject* args,
     return NULL;
   }
 
-  PyObject* no_args = msgpack_byte_object[EMPTY_TUPLE_IDX];
+  if A_UNLIKELY(no_args == NULL) {
+    return NULL;
+  }
   FileUnpacker* self = (FileUnpacker*)Unpacker_new(type, no_args, kwargs);
+  Py_DECREF(no_args);
   if A_UNLIKELY(self == NULL) {
     return NULL;
   }
@@ -79,3 +83,21 @@ static void FileUnpacker_dealloc(FileUnpacker* self) {
   Py_XDECREF(self->read_size);
   Unpacker_dealloc(&self->unpacker);
 }
+
+BEGIN_NO_PEDANTIC
+static PyType_Slot FileUnpacker_slots[] = {
+    {Py_tp_doc,
+     PyDoc_STR("Iteratively unpack binary stream to python objects")},
+    {Py_tp_new, FileUnpacker_new},
+    {Py_tp_dealloc, (destructor)FileUnpacker_dealloc},
+    {Py_tp_iter, AnyUnpacker_iter},
+    {Py_tp_iternext, (iternextfunc)FileUnpacker_iternext},
+    {0, NULL}};
+END_NO_PEDANTIC
+
+static PyType_Spec FileUnpacker_spec = {
+    .name = "amsgpack.FileUnpacker",
+    .basicsize = sizeof(FileUnpacker),
+    .flags = Py_TPFLAGS_DEFAULT,
+    .slots = FileUnpacker_slots,
+};

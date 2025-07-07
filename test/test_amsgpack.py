@@ -92,15 +92,29 @@ class ExtClassTest(TestCase):
         b = Ext(code=128, data=b"123")
         with self.assertRaises(TypeError) as context:
             a < b
-        self.assertEqual(
+        self.assertIn(
             str(context.exception),
-            "'<' not supported between instances of 'amsgpack.Ext' and 'amsgpack.Ext'",
+            (
+                "'<' not supported between instances of 'amsgpack.Ext' and 'amsgpack.Ext'",
+                "'<' not supported between instances of 'Ext' and 'Ext'",
+            ),
         )
 
     def test_compare_types_exception(self):
         a = Ext(code=127, data=b"123")
-        self.assertNotEqual(a, b"b")
-        self.assertFalse(a == b"b")
+        with self.assertRaises(TypeError) as context:
+            a != b"b"
+        self.assertEqual(
+            str(context.exception),
+            "other argument must be amsgpack.Ext instance",
+        )
+
+        with self.assertRaises(TypeError) as context:
+            a == b"b"
+        self.assertEqual(
+            str(context.exception),
+            "other argument must be amsgpack.Ext instance",
+        )
 
 
 class RawTest(TestCase):

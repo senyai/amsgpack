@@ -42,16 +42,23 @@ static PyObject *Raw_richcompare(Raw *self, PyObject *other, int op) {
   return PyObject_RichCompare(self->data, other, op);
 }
 
-static PyTypeObject Raw_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "amsgpack.Raw",
-    .tp_basicsize = sizeof(Raw),
-    .tp_doc = PyDoc_STR("Raw type for packb"),
-    .tp_new = PyType_GenericNew,
-    .tp_dealloc = (destructor)Raw_dealloc,
-    .tp_init = (initproc)Raw_init,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_repr = (reprfunc)Raw_repr,
-    .tp_members = Raw_members,
-    .tp_hash = (hashfunc)Raw_hash,
-    .tp_richcompare = (richcmpfunc)Raw_richcompare,
+BEGIN_NO_PEDANTIC
+static PyType_Slot Raw_slots[] = {
+    {Py_tp_doc, PyDoc_STR("Raw type for packb")},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_dealloc, (destructor)Raw_dealloc},
+    {Py_tp_init, (initproc)Raw_init},
+    {Py_tp_repr, (reprfunc)Raw_repr},
+    {Py_tp_members, Raw_members},
+    {Py_tp_hash, (hashfunc)Raw_hash},
+    {Py_tp_richcompare, (richcmpfunc)Raw_richcompare},
+
+    {0, NULL}};
+END_NO_PEDANTIC
+
+static PyType_Spec Raw_spec = {
+    .name = "amsgpack.Raw",
+    .basicsize = sizeof(Raw),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = Raw_slots,
 };

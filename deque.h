@@ -80,7 +80,7 @@ static inline int deque_append(Deque *deque, PyObject *bytes) {
   return 0;
 }
 
-static inline int deque_has_next_byte(Deque *deque) {
+static inline int deque_has_next_byte(Deque const *deque) {
   return deque->pos < deque->size;
 }
 

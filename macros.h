@@ -18,4 +18,15 @@
 #define A_FORCE_INLINE inline
 #define A_NOINLINE
 #endif
+
+#ifdef __GNUC__
+#define BEGIN_NO_PEDANTIC        \
+  _Pragma("GCC diagnostic push") \
+      _Pragma("GCC diagnostic ignored \"-Wpedantic\"")
+#define END_NO_PEDANTIC _Pragma("GCC diagnostic pop")
+#else
+#define BEGIN_NO_PEDANTIC
+#define END_NO_PEDANTIC
 #endif
+
+#endif  // end A_INCLUDE_MACROS_H

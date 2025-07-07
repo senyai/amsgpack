@@ -83,7 +83,7 @@ typedef struct {
   PyObject* value;  // holds value from PyDict_Next
 } PackbStack;
 
-static PyObject* packb(PyObject* Py_UNUSED(module), PyObject* obj) {
+static PyObject* packb(PyObject* module, PyObject* obj) {
   Py_ssize_t capacity = 1024;
   Py_ssize_t size = 0;
   PyObject* buffer_py = PyBytes_FromStringAndSize(NULL, capacity);
@@ -93,6 +93,7 @@ static PyObject* packb(PyObject* Py_UNUSED(module), PyObject* obj) {
   char* data = PyBytes_AS_STRING(buffer_py);
 
   PackbStack stack[A_STACK_SIZE];
+  AMsgPackState const* state = get_amsgpack_state(module);
   unsigned int stack_length = 0;
   void* obj_type;
 pack_next:
@@ -303,7 +304,7 @@ pack_next:
     AMSGPACK_RESIZE(1);
     data[size] = obj == Py_True ? '\xc3' : '\xc2';
     size += 1;
-  } else if A_UNLIKELY(obj_type == &Ext_Type) {
+  } else if A_UNLIKELY(obj_type == state->ext_type) {
     Ext const* ext = (Ext*)obj;
     Py_ssize_t const ext_data_length = PyBytes_GET_SIZE(ext->data);
     char const* data_bytes = PyBytes_AS_STRING(ext->data);
@@ -351,7 +352,7 @@ pack_next:
         memcpy(data + 2, data_bytes, ext_data_length);
         size += 2 + ext_data_length;
     }
-  } else if A_UNLIKELY(obj_type == &Raw_Type) {
+  } else if A_UNLIKELY(obj_type == state->raw_type) {
     Py_ssize_t const raw_length = PyBytes_GET_SIZE(((Raw*)obj)->data);
     AMSGPACK_RESIZE(raw_length);
     memcpy(data + size, PyBytes_AS_STRING(((Raw*)obj)->data), raw_length);
