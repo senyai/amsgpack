@@ -2,7 +2,7 @@
 
 #include "macros.h"
 
-#define A_STACK_SIZE 32
+#define A_STACK_SIZE 32  // common for packer and unpacker
 #define EMPTY_TUPLE_IDX 0xc4
 #define EMPTY_STRING_IDX 0xa0
 
