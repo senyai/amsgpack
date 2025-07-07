@@ -34,6 +34,7 @@ typedef struct {
   PyObject_HEAD
   Deque deque;
   Parser parser;
+  AMsgPackState* state;
   int use_tuple;
 } Unpacker;
 
@@ -450,7 +451,7 @@ parse_next:
               return NULL;  // likely overflow error
             }
           } else {
-            Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
+            Ext* ext = PyObject_New(Ext, self->state->ext_type);
             if A_UNLIKELY(ext == NULL) {
               PyMem_Free(allocated);
               return NULL;  // Allocation failed
@@ -564,7 +565,7 @@ parse_next:
             return NULL;  // likely overflow error
           }
         } else {
-          Ext* ext = (Ext*)Ext_Type.tp_alloc(&Ext_Type, 0);
+          Ext* ext = PyObject_New(Ext, self->state->ext_type);
           if A_UNLIKELY(ext == NULL) {
             PyMem_Free(allocated);
             return NULL;  // Allocation failed
@@ -596,7 +597,7 @@ parse_next:
                                            1 + size_size + state.str_length)) {
           deque_skip_size(&self->deque, size_size);
           if A_UNLIKELY(state.str_length == 0) {
-            parsed_object = msgpack_byte_object[EMPTY_STRING_IDX];
+            parsed_object = self->state->byte_object[EMPTY_STRING_IDX];
             Py_INCREF(parsed_object);
             break;
           }
@@ -644,7 +645,7 @@ parse_next:
       }
       return NULL;
     default:
-      parsed_object = msgpack_byte_object[(unsigned char)next_byte];
+      parsed_object = self->state->byte_object[(unsigned char)next_byte];
       assert(parsed_object != NULL);
       deque_advance_first_bytes(&self->deque, 1);
       Py_INCREF(parsed_object);
@@ -707,11 +708,16 @@ static PyObject* Unpacker_new(PyTypeObject* type, PyObject* args,
 
   Unpacker* self = (Unpacker*)type->tp_alloc(type, 0);
 
-  if (self != NULL) {
+  if A_LIKELY(self != NULL) {
+    // zerofilled by python
     // init deque
-    memset(&self->deque, 0, sizeof(Deque));
+    // memset(&self->deque, 0, sizeof(Deque));
     // init parser
-    memset(&self->parser, 0, sizeof(Parser));
+    // memset(&self->parser, 0, sizeof(Parser));
+    self->state = PyType_GetModuleState(type);
+    if A_UNLIKELY(self->state == NULL) {
+      return NULL;
+    };
     self->use_tuple = use_tuple;
   }
   return (PyObject*)self;
@@ -754,3 +760,83 @@ static void Unpacker_dealloc(Unpacker* self) {
 #undef DAYS_PER_400Y
 #undef DAYS_PER_100Y
 #undef DAYS_PER_4Y
+
+static PyObject* unpackb(PyObject* restrict module, PyObject* restrict args,
+                         PyObject* restrict kwargs) {
+  PyObject* obj = NULL;
+  if A_UNLIKELY(!PyArg_ParseTuple(args, "O:unpackb", &obj)) {
+    return NULL;
+  }
+
+  if (PyBytes_CheckExact(obj) == 0) {
+    PyObject* bytes_obj = PyBytes_FromObject(obj);
+    if (bytes_obj == NULL) {
+      PyErr_Format(PyExc_TypeError, "an obj object is required, not '%.100s'",
+                   Py_TYPE(obj)->tp_name);
+      return NULL;
+    }
+    obj = bytes_obj;
+  } else {
+    Py_INCREF(obj);  // so we can safely decref it later in this function
+  }
+  AMsgPackState* state = get_amsgpack_state(module);
+  PyObject* no_args = state->byte_object[EMPTY_TUPLE_IDX];
+
+  Unpacker* unpacker =
+      (Unpacker*)Unpacker_new(state->unpacker_type, no_args, kwargs);
+  if A_UNLIKELY(unpacker == NULL) {
+    Py_DECREF(obj);
+    return NULL;
+  }
+  int const append_result = deque_append(&unpacker->deque, obj);
+  Py_DECREF(obj);
+  if A_UNLIKELY(append_result < 0) {
+    return NULL;
+  }
+  PyObject* ret = Unpacker_iternext(unpacker);
+  if (ret == NULL) {
+    if A_UNLIKELY(PyErr_Occurred() == NULL) {
+      PyErr_SetString(PyExc_ValueError, "Incomplete Message Pack format");
+    }
+    goto error;
+  }
+  if A_UNLIKELY(unpacker->deque.deque_first != NULL) {
+    PyErr_SetString(PyExc_ValueError, "Extra data");
+    goto error;
+  }
+  Py_DECREF(unpacker);
+  return ret;
+error:
+  Py_DECREF(unpacker);
+  return NULL;
+}
+
+/*
+  Unpacker class
+*/
+PyDoc_STRVAR(unpacker_feed_doc,
+             "feed($self, bytes, /)\n--\n\n"
+             "Append ``bytes`` to internal buffer.");
+
+static PyMethodDef Unpacker_Methods[] = {
+    {"feed", (PyCFunction)&unpacker_feed, METH_O, unpacker_feed_doc},
+    {NULL, NULL, 0, NULL}  // Sentinel
+};
+
+BEGIN_NO_PEDANTIC
+static PyType_Slot Unpacker_slots[] = {
+    {Py_tp_doc, PyDoc_STR("Unpack bytes to python objects")},
+    {Py_tp_new, Unpacker_new},
+    {Py_tp_dealloc, (destructor)Unpacker_dealloc},
+    {Py_tp_methods, Unpacker_Methods},
+    {Py_tp_iter, AnyUnpacker_iter},
+    {Py_tp_iternext, (iternextfunc)Unpacker_iternext},
+    {0, NULL}};
+END_NO_PEDANTIC
+
+static PyType_Spec Unpacker_spec = {
+    .name = "amsgpack.Unpacker",
+    .basicsize = sizeof(Unpacker),
+    .flags = Py_TPFLAGS_DEFAULT,
+    .slots = Unpacker_slots,
+};

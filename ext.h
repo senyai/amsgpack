@@ -56,35 +56,37 @@ static PyObject *Ext_repr(Ext *self) {
 
 static PyObject *Ext_richcompare(Ext *self, PyObject *other, int op);
 
-static PyTypeObject Ext_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "amsgpack.Ext",
-    .tp_basicsize = sizeof(Ext),
-    .tp_doc = PyDoc_STR("ext type from msgpack specification"),
-    .tp_new = PyType_GenericNew,
-    .tp_dealloc = (destructor)Ext_dealloc,
-    .tp_init = (initproc)Ext_init,
-    .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_repr = (reprfunc)Ext_repr,
-    .tp_members = Ext_members,
-    .tp_hash = (hashfunc)Ext_hash,
-    .tp_richcompare = (richcmpfunc)Ext_richcompare,
+BEGIN_NO_PEDANTIC
+static PyType_Slot Ext_slots[] = {
+    {Py_tp_doc, PyDoc_STR("ext type from msgpack specification")},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_dealloc, Ext_dealloc},
+    {Py_tp_init, Ext_init},
+    {Py_tp_repr, Ext_repr},
+    {Py_tp_members, Ext_members},
+    {Py_tp_hash, Ext_hash},
+    {Py_tp_richcompare, Ext_richcompare},
+    {Py_tp_new, PyType_GenericNew},
+    {0, NULL}};
+END_NO_PEDANTIC
+
+static PyType_Spec Ext_spec = {
+    .name = "amsgpack.Ext",
+    .basicsize = sizeof(Ext),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = Ext_slots,
 };
 
 static PyObject *Ext_richcompare(Ext *self, PyObject *other, int op) {
-  PyObject *result = NULL;
-
   // Only implement equality comparison
   if (op != Py_EQ && op != Py_NE) {
     Py_RETURN_NOTIMPLEMENTED;
   }
 
-  // Check if 'other' is the same type
-  if (!Py_IS_TYPE(other, &Ext_Type)) {
-    if (op == Py_EQ) {
-      Py_RETURN_FALSE;
-    } else {
-      Py_RETURN_TRUE;
-    }
+  if (!Py_IS_TYPE(other, Py_TYPE(self))) {
+    PyErr_Format(PyExc_TypeError,
+                 "other argument must be amsgpack.Ext instance");
+    return NULL;
   }
 
   Ext *other_ext = (Ext *)other;
@@ -105,6 +107,7 @@ static PyObject *Ext_richcompare(Ext *self, PyObject *other, int op) {
     // `self->data` and `other_ext->data` are of the same type
     return NULL;  // GCOVR_EXCL_LINE
   }
+  PyObject *result = NULL;
 
   // Determine result based on comparison operator
   if (op == Py_EQ) {
