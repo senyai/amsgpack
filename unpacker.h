@@ -250,13 +250,13 @@ parse_next:
   char const next_byte = deque_peek_byte(&self->deque);
   PyObject* parsed_object = NULL;
   // to allow passing length between switch cases
-  union State {
-    Py_ssize_t str_length;
-    Py_ssize_t bin_length;
-    Py_ssize_t arr_length;
-    Py_ssize_t map_length;
-    Py_ssize_t ext_length;  // without code
-  } state;
+  union {
+    Py_ssize_t str;
+    Py_ssize_t bin;
+    Py_ssize_t arr;
+    Py_ssize_t map;
+    Py_ssize_t ext;  // without code
+  } length;
   switch (next_byte) {
     case '\x80':
       parsed_object = ANEW_DICT(0);
@@ -280,25 +280,25 @@ parse_next:
     case '\x8d':
     case '\x8e':
     case '\x8f':  // fixmap
-      state.map_length = Py_CHARMASK(next_byte) & 0x0f;
+      length.map = Py_CHARMASK(next_byte) & 0x0f;
       deque_advance_first_bytes(&self->deque, 1);
-      goto map_length;
-    map_length: {
+      goto length_map;
+    length_map: {
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
-      parsed_object = ANEW_DICT(state.map_length);
+      parsed_object = ANEW_DICT(length.map);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
-      if (state.map_length == 0) {
+      if (length.map == 0) {
         break;
       }
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = DICT_KEY,
                   .sequence = parsed_object,
-                  .size = state.map_length,
+                  .size = length.map,
                   .pos = 0};
       goto parse_next;
     }
@@ -318,21 +318,21 @@ parse_next:
     case '\x9d':
     case '\x9e':
     case '\x9f': {  // fixarray
-      state.arr_length = Py_CHARMASK(next_byte) & 0x0f;
+      length.arr = Py_CHARMASK(next_byte) & 0x0f;
       deque_advance_first_bytes(&self->deque, 1);
-      goto arr_length;
+      goto length_arr;
     }
-    arr_length: {
+    length_arr: {
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
         return NULL;
       }
       parsed_object =
-          (self->use_tuple == 0 ? PyList_New : PyTuple_New)(state.arr_length);
+          (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length.arr);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
-      if (state.arr_length == 0) {
+      if (length.arr == 0) {
         break;
       }
 #ifndef PYPY_VERSION
@@ -345,7 +345,7 @@ parse_next:
       self->parser.stack[self->parser.stack_length++] =
           (Stack){.action = SEQUENCE_APPEND,
                   .sequence = parsed_object,
-                  .size = state.arr_length,
+                  .size = length.arr,
                   .pos = 0,
                   .values = values};
       goto parse_next;
@@ -381,16 +381,16 @@ parse_next:
     case '\xbd':
     case '\xbe':
     case '\xbf':  // fixstr
-      state.str_length = Py_CHARMASK(next_byte) & 0x1f;
-      if A_LIKELY(deque_has_next_n_bytes(&self->deque, state.str_length + 1)) {
+      length.str = Py_CHARMASK(next_byte) & 0x1f;
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, length.str + 1)) {
         deque_advance_first_bytes(&self->deque, 1);
-        goto str_length;
+        goto length_str;
       }
       return NULL;
-    str_length: {
-      READ_A_DATA(state.str_length);
-      parsed_object = PyUnicode_DecodeUTF8(data, state.str_length, NULL);
-      FREE_A_DATA(state.str_length);
+    length_str: {
+      READ_A_DATA(length.str);
+      parsed_object = PyUnicode_DecodeUTF8(data, length.str, NULL);
+      FREE_A_DATA(length.str);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
       }
@@ -405,19 +405,18 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xc4');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
-        state.bin_length = deque_peek_size(&self->deque, size_size);
-        if A_UNLIKELY(state.bin_length > MiB128) {
-          return size_error("bytes", state.bin_length, MiB128);
+        length.bin = deque_peek_size(&self->deque, size_size);
+        if A_UNLIKELY(length.bin > MiB128) {
+          return size_error("bytes", length.bin, MiB128);
         }
-        if (deque_has_next_n_bytes(&self->deque,
-                                   1 + size_size + state.bin_length)) {
+        if (deque_has_next_n_bytes(&self->deque, 1 + size_size + length.bin)) {
           deque_skip_size(&self->deque, size_size);
-          if A_UNLIKELY(state.bin_length == 0) {
-            parsed_object = PyBytes_FromStringAndSize(NULL, state.bin_length);
+          if A_UNLIKELY(length.bin == 0) {
+            parsed_object = PyBytes_FromStringAndSize(NULL, length.bin);
           } else {
-            READ_A_DATA(state.bin_length);
-            parsed_object = PyBytes_FromStringAndSize(data, state.bin_length);
-            FREE_A_DATA(state.bin_length);
+            READ_A_DATA(length.bin);
+            parsed_object = PyBytes_FromStringAndSize(data, length.bin);
+            FREE_A_DATA(length.bin);
           }
           if A_UNLIKELY(parsed_object == NULL) {
             return NULL;
@@ -433,14 +432,14 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xc7');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size + 1)) {
-        state.ext_length = deque_peek_size(&self->deque, size_size);
-        if A_UNLIKELY(state.ext_length >= MiB128) {
-          return size_error("ext", state.ext_length, MiB128);
+        length.ext = deque_peek_size(&self->deque, size_size);
+        if A_UNLIKELY(length.ext >= MiB128) {
+          return size_error("ext", length.ext, MiB128);
         }
-        if A_LIKELY(deque_has_next_n_bytes(
-                        &self->deque, 1 + size_size + 1 + state.ext_length)) {
+        if A_LIKELY(deque_has_next_n_bytes(&self->deque,
+                                           1 + size_size + 1 + length.ext)) {
           deque_skip_size(&self->deque, size_size);
-          goto ext_length;
+          goto length_ext;
         }
       }
       return NULL;
@@ -527,18 +526,18 @@ parse_next:
     case '\xd6':  // fixext 4
     case '\xd7':  // fixext 8
     case '\xd8':  // fixext 16
-      state.ext_length = (Py_ssize_t)1 << (next_byte - '\xd4');
-      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + state.ext_length)) {
+      length.ext = (Py_ssize_t)1 << (next_byte - '\xd4');
+      if A_LIKELY(deque_has_next_n_bytes(&self->deque, 2 + length.ext)) {
         deque_advance_first_bytes(&self->deque, 1);
-        goto ext_length;
+        goto length_ext;
       }
       return NULL;
-    ext_length: {
-      READ_A_DATA(state.ext_length + 1);
+    length_ext: {
+      READ_A_DATA(length.ext + 1);
       char const code = data[0];
-      if (code == -1 && (state.ext_length == 8 || state.ext_length == 4 ||
-                         state.ext_length == 12)) {
-        parsed_object = ext_to_timestamp(data + 1, state.ext_length);
+      if (code == -1 &&
+          (length.ext == 8 || length.ext == 4 || length.ext == 12)) {
+        parsed_object = ext_to_timestamp(data + 1, length.ext);
         if A_UNLIKELY(parsed_object == NULL) {
           PyMem_Free(allocated);
           return NULL;  // likely overflow error
@@ -550,7 +549,7 @@ parse_next:
           return NULL;  // Allocation failed
         }
         ext->code = code;
-        ext->data = PyBytes_FromStringAndSize(data + 1, state.ext_length);
+        ext->data = PyBytes_FromStringAndSize(data + 1, length.ext);
         if A_UNLIKELY(ext->data == NULL) {
           Py_DECREF(ext);
           PyMem_Free(allocated);
@@ -558,7 +557,7 @@ parse_next:
         }
         parsed_object = (PyObject*)ext;
       }
-      FREE_A_DATA(state.ext_length + 1);
+      FREE_A_DATA(length.ext + 1);
       break;
     }
     case '\xd9':  // str 8
@@ -567,19 +566,19 @@ parse_next:
     {
       unsigned char const size_size = 1 << (next_byte - '\xd9');
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 1 + size_size)) {
-        state.str_length = deque_peek_size(&self->deque, size_size);
-        if A_UNLIKELY(state.str_length > MiB128) {
-          return size_error("string", state.str_length, MiB128);
+        length.str = deque_peek_size(&self->deque, size_size);
+        if A_UNLIKELY(length.str > MiB128) {
+          return size_error("string", length.str, MiB128);
         }
         if A_LIKELY(deque_has_next_n_bytes(&self->deque,
-                                           1 + size_size + state.str_length)) {
+                                           1 + size_size + length.str)) {
           deque_skip_size(&self->deque, size_size);
-          if A_UNLIKELY(state.str_length == 0) {
+          if A_UNLIKELY(length.str == 0) {
             parsed_object = self->state->byte_object[EMPTY_STRING_IDX];
             Py_INCREF(parsed_object);
             break;
           }
-          goto str_length;
+          goto length_str;
         }
       }
       return NULL;
@@ -588,38 +587,38 @@ parse_next:
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_WORD;
-        state.arr_length = word.us;
-        goto arr_length;
+        length.arr = word.us;
+        goto length_arr;
       }
       return NULL;
     case '\xdd':  // array 32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DWORD;
-        state.arr_length = dword.ul;
-        if A_UNLIKELY(state.arr_length > 10000000) {
-          return size_error("list", state.arr_length, 10000000);
+        length.arr = dword.ul;
+        if A_UNLIKELY(length.arr > 10000000) {
+          return size_error("list", length.arr, 10000000);
         }
-        goto arr_length;
+        goto length_arr;
       }
       return NULL;
     case '\xde':  // map 16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_WORD;
-        state.map_length = word.us;
-        goto map_length;
+        length.map = word.us;
+        goto length_map;
       }
       return NULL;
     case '\xdf':  // map 32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DWORD;
-        state.map_length = dword.ul;
-        if A_UNLIKELY(state.map_length > 100000) {
-          return size_error("dict", state.map_length, 100000);
+        length.map = dword.ul;
+        if A_UNLIKELY(length.map > 100000) {
+          return size_error("dict", length.map, 100000);
         }
-        goto map_length;
+        goto length_map;
       }
       return NULL;
     default:
