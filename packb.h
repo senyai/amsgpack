@@ -415,7 +415,7 @@ pack_next:
         item->action = KEY_NEXT;
         obj = item->value;
         goto pack_next;
-      default:
+      default:             // GCOVR_EXCL_LINE
         Py_UNREACHABLE();  // GCOVR_EXCL_LINE
     }
   }

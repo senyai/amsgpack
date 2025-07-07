@@ -237,6 +237,15 @@ class UnpackbIntTest(SequenceTestCase):
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF))
 
+    def test_uint_16_partly(self):
+        u = Unpacker()
+        u.feed(b"\xcd")
+        self.safeSequenceEqual(u, ())
+        u.feed(b"\x00")
+        self.safeSequenceEqual(u, ())
+        u.feed(b"\x01")
+        self.safeSequenceEqual(u, (1,))
+
     def test_uint_32(self):
         u = Unpacker()
         for (
@@ -298,6 +307,17 @@ class UnpackbMapTest(SequenceTestCase):
             str(context.exception), "dict size 4294967295 is too big (>100000)"
         )
 
+    def test_deeply_nested_okay(self):
+        res = unpackb(b"".join(b"\x81\x00" for _ in range(32)) + b"\xc0")
+        ref = eval("{0:" * 32 + "None" + "}" * 32)
+        self.assertDictEqual(res, ref)
+
+    def test_deeply_nested_exception(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"".join(b"\x81\x00" for _ in range(33)) + b"\xc0")
+
+        self.assertEqual(str(context.exception), "Deeply nested object")
+
 
 class UnpackbArrayTest(SequenceTestCase):
     def test_len_0(self):
@@ -325,6 +345,17 @@ class UnpackbArrayTest(SequenceTestCase):
             str(context.exception),
             "list size 4294967295 is too big (>10000000)",
         )
+
+    def test_deeply_nested_okay(self):
+        res = unpackb(b"".join(b"\x91" for _ in range(32)) + b"\xc0")
+        ref = eval(f"[" * 32 + "None" + "]" * 32)
+        self.assertListEqual(res, ref)
+
+    def test_deeply_nested_exception(self):
+        with self.assertRaises(ValueError) as context:
+            unpackb(b"".join(b"\x91" for _ in range(33)) + b"\xc0")
+
+        self.assertEqual(str(context.exception), "Deeply nested object")
 
 
 class UnpackbStrTest(SequenceTestCase):
