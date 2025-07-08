@@ -6,12 +6,25 @@
 #define EMPTY_TUPLE_IDX 0xc4
 #define EMPTY_STRING_IDX 0xa0
 
+// currently we only store fixstr keys in cache, so the size is 15 + 1
+#define MAX_CACHE_LEN 16
+#define CACHE_TABLE_SIZE (1 << 9)
+
+typedef struct {
+  uint32_t hash;
+  PyObject* obj;
+  uint16_t len;
+  uint8_t data[MAX_CACHE_LEN];
+} CacheEntry;
+
 typedef struct {
   PyObject* byte_object[256];
   PyTypeObject* ext_type;
   PyTypeObject* raw_type;
   PyTypeObject* unpacker_type;
   PyTypeObject* file_unpacker_type;
+  int_fast8_t gc_cycle;
+  CacheEntry unicode_cache[CACHE_TABLE_SIZE];
 } AMsgPackState;
 
 static inline AMsgPackState* get_amsgpack_state(PyObject* module) {
@@ -124,6 +137,31 @@ static PyModuleDef_Slot amsgpack_slots[] = {
     {0, NULL}};
 END_NO_PEDANTIC
 
+static int amsgpack_traverse(PyObject* module, visitproc Py_UNUSED(visit),
+                             void* Py_UNUSED(arg)) {
+  AMsgPackState* state = get_amsgpack_state(module);
+  state->gc_cycle++;
+  // amsgpack_traverse is usually called two times in a row, so:
+  if ((state->gc_cycle & 1) == 1) {
+    int_fast8_t clear_part = state->gc_cycle / 2;
+    if (clear_part > 7) {
+      clear_part = state->gc_cycle = 0;
+    }
+    int const stride_el = CACHE_TABLE_SIZE / 8;
+    for (int i = clear_part * stride_el; i < clear_part * stride_el + stride_el;
+         ++i) {
+      PyObject* obj = state->unicode_cache[i].obj;
+      // Technically, another module can hold strings in its cache
+      // and we will never clear memory. Do not know what to do about it.
+      if (obj != NULL && Py_REFCNT(obj) == 1) {
+        Py_DECREF(obj);
+        state->unicode_cache[i].obj = NULL;
+      }
+    }
+  }
+  return 0;
+}
+
 static void amsgpack_free(void* module) {
   AMsgPackState* state = get_amsgpack_state((PyObject*)module);
   for (unsigned int i = 0; i < sizeof((*state).byte_object) / sizeof(PyObject*);
@@ -134,6 +172,9 @@ static void amsgpack_free(void* module) {
   Py_XDECREF(state->raw_type);
   Py_XDECREF(state->unpacker_type);
   Py_XDECREF(state->file_unpacker_type);
+  for (unsigned int i = 0; i < CACHE_TABLE_SIZE; ++i) {
+    Py_XDECREF(state->unicode_cache[i].obj);
+  }
 }
 
 static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
@@ -142,6 +183,7 @@ static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
                                              .m_size = sizeof(AMsgPackState),
                                              .m_methods = amsgpack_methods,
                                              .m_slots = amsgpack_slots,
+                                             .m_traverse = amsgpack_traverse,
                                              .m_free = amsgpack_free};
 
 PyMODINIT_FUNC PyInit_amsgpack(void) {
