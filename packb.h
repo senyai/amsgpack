@@ -103,6 +103,47 @@ pack_next:
     AMSGPACK_RESIZE(9);
     put9_dbl(data + size, '\xcb', PyFloat_AS_DOUBLE(obj));
     size += 9;
+  } else if A_UNLIKELY(obj_type == &PyUnicode_Type) {
+    // https://docs.python.org/3.11/c-api/unicode.html
+    Py_ssize_t u8size = 0;
+    char const* u8string = NULL;
+    if (A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj))) {
+      u8size = ((PyASCIIObject*)obj)->length;
+      u8string = (char*)(((PyASCIIObject*)obj) + 1);
+    } else {
+      u8size = ((PyCompactUnicodeObject*)obj)->utf8_length;
+      u8string = ((PyCompactUnicodeObject*)obj)->utf8;
+    }
+
+    if A_UNLIKELY(u8string == NULL) {
+      u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
+      if A_UNLIKELY(u8string == NULL) {
+        return NULL;
+      }
+    }
+    if (u8size <= 0xf) {
+      AMSGPACK_RESIZE(1 + u8size);
+      data[size] = '\xa0' + (char)u8size;
+      size += 1;
+    } else if (u8size <= 0xff) {
+      AMSGPACK_RESIZE(2 + u8size);
+      put2(data + size, '\xd9', (uint8_t)u8size);
+      size += 2;
+    } else if (u8size <= 0xffff) {
+      AMSGPACK_RESIZE(3 + u8size);
+      put3(data + size, '\xda', (uint16_t)u8size);
+      size += 3;
+    } else if (u8size <= 0xffffffff) {
+      AMSGPACK_RESIZE(5 + u8size);
+      put5(data + size, '\xdb', (uint32_t)u8size);
+      size += 5;
+    } else {
+      PyErr_SetString(PyExc_ValueError,
+                      "String length is out of MessagePack range");
+      goto error;
+    }
+    memcpy(data + size, u8string, u8size);
+    size += u8size;
   } else if A_UNLIKELY(obj_type == &PyLong_Type) {
     // https://docs.python.org/3/c-api/long.html
     long long const value = PyLong_AsLongLong(obj);
@@ -159,47 +200,6 @@ pack_next:
         size += 9;
       }
     }
-  } else if A_UNLIKELY(obj_type == &PyUnicode_Type) {
-    // https://docs.python.org/3.11/c-api/unicode.html
-    Py_ssize_t u8size = 0;
-    char const* u8string = NULL;
-    if (A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj))) {
-      u8size = ((PyASCIIObject*)obj)->length;
-      u8string = (char*)(((PyASCIIObject*)obj) + 1);
-    } else {
-      u8size = ((PyCompactUnicodeObject*)obj)->utf8_length;
-      u8string = ((PyCompactUnicodeObject*)obj)->utf8;
-    }
-
-    if A_UNLIKELY(u8string == NULL) {
-      u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
-      if A_UNLIKELY(u8string == NULL) {
-        return NULL;
-      }
-    }
-    if (u8size <= 0xf) {
-      AMSGPACK_RESIZE(1 + u8size);
-      data[size] = '\xa0' + (char)u8size;
-      size += 1;
-    } else if (u8size <= 0xff) {
-      AMSGPACK_RESIZE(2 + u8size);
-      put2(data + size, '\xd9', (uint8_t)u8size);
-      size += 2;
-    } else if (u8size <= 0xffff) {
-      AMSGPACK_RESIZE(3 + u8size);
-      put3(data + size, '\xda', (uint16_t)u8size);
-      size += 3;
-    } else if (u8size <= 0xffffffff) {
-      AMSGPACK_RESIZE(5 + u8size);
-      put5(data + size, '\xdb', (uint32_t)u8size);
-      size += 5;
-    } else {
-      PyErr_SetString(PyExc_ValueError,
-                      "String length is out of MessagePack range");
-      goto error;
-    }
-    memcpy(data + size, u8string, u8size);
-    size += u8size;
   } else if A_UNLIKELY(obj_type == &PyList_Type || obj_type == &PyTuple_Type) {
     // https://docs.python.org/3.11/c-api/list.html
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
@@ -209,7 +209,7 @@ pack_next:
     Py_ssize_t const length = (obj_type == &PyList_Type)
                                   ? PyList_GET_SIZE(obj)
                                   : PyTuple_GET_SIZE(obj);
-    if (length <= 0x0f) {
+    if A_LIKELY(length <= 0x0f) {
       AMSGPACK_RESIZE(1);
       data[size] = '\x90' + (char)length;
       size += 1;
@@ -245,7 +245,7 @@ pack_next:
     // https://docs.python.org/3.11/c-api/dict.html
     Py_ssize_t const dict_size = PyDict_Size(obj);
 
-    if (dict_size <= 15) {
+    if A_LIKELY(dict_size <= 15) {
       AMSGPACK_RESIZE(1);
       data[size] = '\x80' + (char)dict_size;
       size += 1;
@@ -277,7 +277,7 @@ pack_next:
       bytes_size = PyByteArray_GET_SIZE(obj);
       bytes_buffer = PyByteArray_AS_STRING(obj);
     }
-    if (bytes_size <= 0xff) {
+    if A_LIKELY(bytes_size <= 0xff) {
       AMSGPACK_RESIZE(2 + bytes_size);
       put2(data + size, '\xc4', (uint8_t)bytes_size);
       size += 2;
@@ -296,13 +296,13 @@ pack_next:
     }
     memcpy(data + size, bytes_buffer, bytes_size);
     size += bytes_size;
-  } else if A_UNLIKELY(obj == Py_None) {
-    AMSGPACK_RESIZE(1);
-    data[size] = '\xc0';
-    size += 1;
   } else if A_UNLIKELY(obj_type == &PyBool_Type) {
     AMSGPACK_RESIZE(1);
     data[size] = obj == Py_True ? '\xc3' : '\xc2';
+    size += 1;
+  } else if A_UNLIKELY(obj == Py_None) {
+    AMSGPACK_RESIZE(1);
+    data[size] = '\xc0';
     size += 1;
   } else if A_UNLIKELY(obj_type == state->ext_type) {
     Ext const* ext = (Ext*)obj;
