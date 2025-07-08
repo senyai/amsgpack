@@ -9,6 +9,64 @@
 #define ANEW_DICT(N) PyDict_New()
 #endif
 
+static inline uint32_t xxhash32(uint8_t const* data, uint32_t len,
+                                uint32_t seed) {
+  if (len > MAX_CACHE_LEN) {
+    Py_UNREACHABLE();  // GCOVR_EXCL_LINE
+  }
+  uint32_t const prime = 0x9E3779B1;
+  uint32_t hash = seed + prime;
+  size_t idx = 0;
+
+  for (; idx != (len & ~0x03U); idx += 4) {
+    uint32_t block;
+    // Avoids strict-aliasing issues, as we know the data is not aligned
+    memcpy(&block, data + idx, 4);
+    hash ^= block;
+    hash *= prime;
+    hash = (hash << 13) | (hash >> 19);  // Rotate left 13
+  }
+
+  for (; idx < len; ++idx) {
+    hash ^= data[idx];
+    hash *= prime;
+    hash = (hash << 13) | (hash >> 19);
+  }
+
+  hash ^= len;
+  hash *= 0x85EBCA77;
+  hash ^= (hash >> 16);
+  return hash;
+}
+
+static inline PyObject* as_string(AMsgPackState* state, char const* str,
+                                  Py_ssize_t length) {
+  if A_LIKELY(length <= MAX_CACHE_LEN) {
+    // let's not  use the seed, as there's no actual denial of service
+    uint32_t const hash =
+        xxhash32((uint8_t const*)str, length, 0 /*_Py_HashSecret.siphash.k0*/);
+    CacheEntry* cache_entry =
+        &state->unicode_cache[hash & (CACHE_TABLE_SIZE - 1)];
+    if (cache_entry->hash == hash && cache_entry->len == length &&
+        memcmp(str, cache_entry->data, length) == 0) {
+      Py_INCREF(cache_entry->obj);
+      return cache_entry->obj;
+    }
+    PyObject* parsed_object = PyUnicode_DecodeUTF8(str, length, NULL);
+    if A_UNLIKELY(parsed_object == NULL) {
+      return parsed_object;
+    }
+    Py_XDECREF(cache_entry->obj);
+    cache_entry->hash = hash;
+    Py_INCREF(parsed_object);
+    cache_entry->obj = parsed_object;
+    cache_entry->len = length;
+    memcpy(cache_entry->data, str, length);
+    return parsed_object;
+  }
+  return PyUnicode_DecodeUTF8(str, length, NULL);
+}
+
 typedef struct {
   enum UnpackAction { SEQUENCE_APPEND, DICT_KEY, DICT_VALUE } action;
   PyObject* sequence;
@@ -243,12 +301,7 @@ static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
 }
 
 static PyObject* Unpacker_iternext(Unpacker* self) {
-parse_next:
-  if (!deque_has_next_byte(&self->deque)) {
-    return NULL;
-  }
-  char const next_byte = deque_peek_byte(&self->deque);
-  PyObject* parsed_object = NULL;
+  int parse_a_key = 0;
   // to allow passing length between switch cases
   union {
     Py_ssize_t str;
@@ -257,6 +310,14 @@ parse_next:
     Py_ssize_t map;
     Py_ssize_t ext;  // without code
   } length;
+  PyObject* parsed_object;
+  char next_byte;
+parse_next:
+  if (!deque_has_next_byte(&self->deque)) {
+    return NULL;
+  }
+  next_byte = deque_peek_byte(&self->deque);
+parse_next_with_next_byte_set:
   switch (next_byte) {
     case '\x80':
       parsed_object = ANEW_DICT(0);
@@ -300,7 +361,15 @@ parse_next:
                   .sequence = parsed_object,
                   .size = length.map,
                   .pos = 0};
-      goto parse_next;
+      if (!deque_has_next_byte(&self->deque)) {
+        return NULL;
+      }
+      parse_a_key = 1;
+      next_byte = deque_peek_byte(&self->deque);
+      if (next_byte >= '\xa1' && next_byte <= '\xbf') {
+        goto fixstr;
+      }
+      goto parse_next_with_next_byte_set;
     }
     case '\x90':
     case '\x91':
@@ -380,7 +449,8 @@ parse_next:
     case '\xbc':
     case '\xbd':
     case '\xbe':
-    case '\xbf':  // fixstr
+    case '\xbf':
+    fixstr:
       length.str = Py_CHARMASK(next_byte) & 0x1f;
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, length.str + 1)) {
         deque_advance_first_bytes(&self->deque, 1);
@@ -389,7 +459,13 @@ parse_next:
       return NULL;
     length_str: {
       READ_A_DATA(length.str);
-      parsed_object = PyUnicode_DecodeUTF8(data, length.str, NULL);
+      if (parse_a_key != 0) {
+        parsed_object = as_string(self->state, data, length.str);
+        parse_a_key = 0;
+      } else {
+        parsed_object = PyUnicode_DecodeUTF8(data, length.str, NULL);
+      }
+
       FREE_A_DATA(length.str);
       if A_UNLIKELY(parsed_object == NULL) {
         return NULL;
@@ -665,7 +741,15 @@ parse_next:
           self->parser.stack_length -= 1;
           break;
         }
-        goto parse_next;
+        if (!deque_has_next_byte(&self->deque)) {
+          return NULL;
+        }
+        parse_a_key = 1;
+        next_byte = deque_peek_byte(&self->deque);
+        if (next_byte >= '\xa1' && next_byte <= '\xbf') {
+          goto fixstr;
+        }
+        goto parse_next_with_next_byte_set;
       }
       default:             // GCOVR_EXCL_LINE
         Py_UNREACHABLE();  // GCOVR_EXCL_LINE
