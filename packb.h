@@ -107,21 +107,22 @@ pack_next:
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size = 0;
     char const* u8string = NULL;
-    if (A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj))) {
+    if A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj)) {
       u8size = ((PyASCIIObject*)obj)->length;
       u8string = (char*)(((PyASCIIObject*)obj) + 1);
     } else {
       u8size = ((PyCompactUnicodeObject*)obj)->utf8_length;
-      u8string = ((PyCompactUnicodeObject*)obj)->utf8;
-    }
-
-    if A_UNLIKELY(u8string == NULL) {
-      u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
-      if A_UNLIKELY(u8string == NULL) {
-        return NULL;
+      if A_LIKELY(u8size == 0) {
+        u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
+        if A_UNLIKELY(u8string == NULL) {
+          return NULL;
+        }
+      } else {
+        u8string = ((PyCompactUnicodeObject*)obj)->utf8;
       }
     }
-    if (u8size <= 0xf) {
+
+    if A_LIKELY(u8size <= 0xf) {
       AMSGPACK_RESIZE(1 + u8size);
       data[size] = '\xa0' + (char)u8size;
       size += 1;
@@ -129,11 +130,11 @@ pack_next:
       AMSGPACK_RESIZE(2 + u8size);
       put2(data + size, '\xd9', (uint8_t)u8size);
       size += 2;
-    } else if (u8size <= 0xffff) {
+    } else if A_UNLIKELY(u8size <= 0xffff) {
       AMSGPACK_RESIZE(3 + u8size);
       put3(data + size, '\xda', (uint16_t)u8size);
       size += 3;
-    } else if (u8size <= 0xffffffff) {
+    } else if A_UNLIKELY(u8size <= 0xffffffff) {
       AMSGPACK_RESIZE(5 + u8size);
       put5(data + size, '\xdb', (uint32_t)u8size);
       size += 5;
