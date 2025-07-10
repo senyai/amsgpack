@@ -3,7 +3,13 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
-from amsgpack import __version__
+from amsgpack import __version__ as amsgpack_version
+from msgpack import version as msgpack_version_
+from ormsgpack import __version__ as ormsgpack_version
+from msgspec import __version__ as msgspec_version_
+
+msgpack_version = ".".join(map(str, msgpack_version_))
+msgspec_version = msgspec_version_.partition("+")[0]
 
 plt.rcParams["font.size"] = 16
 
@@ -37,12 +43,12 @@ ax2.grid(axis="y")
 ax2.set_axisbelow(True)
 x = np.arange(len(file_names))
 
-colors = {
-    "msgpack": "#8d3e88",
-    "amsgpack": "#439987",
-    "ormsgpack": "#f5557d",
-    # "umsgpack": "#aaaac0",
-    "msgspec": "#fe8e61",
+colors_and_version = {
+    "msgpack": ("#8d3e88", msgpack_version),
+    "amsgpack": ("#439987", amsgpack_version),
+    "ormsgpack": ("#f5557d", ormsgpack_version),
+    # "umsgpack": ("#aaaac0",),
+    "msgspec": ("#fe8e61", msgspec_version),
 }
 
 from pprint import pprint
@@ -51,19 +57,16 @@ pprint(data)
 
 for module_name in ("msgpack", "ormsgpack", "msgspec", "amsgpack"):
     offset = width * multiplier
-    color = colors[module_name]
+    color, version = colors_and_version[module_name]
+    label = f"$\\bf{{{module_name}}}$ $\\mathrm{{{version}}}$"
 
     bunch = data["pack_benchmark"][module_name]
     measurement = [bunch[file_name] for file_name in sorted(file_names)]
-    rects = ax1.bar(
-        x + offset, measurement, width, label=module_name, color=color
-    )
+    rects = ax1.bar(x + offset, measurement, width, label=label, color=color)
 
     bunch = data["unpack_benchmark"][module_name]
     measurement = [bunch[file_name] for file_name in sorted(file_names)]
-    rects = ax2.bar(
-        x + offset, measurement, width, label=module_name, color=color
-    )
+    rects = ax2.bar(x + offset, measurement, width, label=label, color=color)
 
     # ax1.bar_label(rects, padding=6, fmt="%0.2f GiB/s")
     multiplier += 1
@@ -71,13 +74,13 @@ for module_name in ("msgpack", "ormsgpack", "msgspec", "amsgpack"):
 ax1.set_title("$packb$ speed")
 ax1.set_ylabel("GiB / Second")
 ax1.set_xticks(x + width, sorted(file_names))
-ax1.legend(loc="upper left", ncols=2)
+ax1.legend(loc="upper left", ncols=2, prop={"size": 13})
 
 ax2.set_title("$unpackb$ speed")
 ax2.set_ylabel("GiB / Second")
 ax2.set_xticks(x + width, sorted(file_names))
-ax2.legend(loc="upper left", ncols=2)
+ax2.legend(loc="upper left", ncols=2, prop={"size": 13})
 
-filename = f"benchmark-{__version__}.svg"
+filename = f"benchmark-{amsgpack_version}.svg"
 plt.savefig(filename)
 print(f"saved {filename}")
