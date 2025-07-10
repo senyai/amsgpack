@@ -12,10 +12,17 @@
 
 typedef struct {
   uint32_t hash;
-  PyObject* obj;
   uint16_t len;
+  PyObject* obj;
   uint8_t data[MAX_CACHE_LEN];
 } CacheEntry;
+
+static inline void reset_cache_entry(CacheEntry* entry) {
+  // reset, so that cache entry won't match after obj is destroyed
+  entry->hash = 0;
+  entry->len = 0xffff;
+  entry->obj = NULL;
+}
 
 typedef struct {
   PyObject* byte_object[256];
@@ -155,7 +162,7 @@ static int amsgpack_traverse(PyObject* module, visitproc Py_UNUSED(visit),
       // and we will never clear memory. Do not know what to do about it.
       if (obj != NULL && Py_REFCNT(obj) == 1) {
         Py_DECREF(obj);
-        state->unicode_cache[i].obj = NULL;
+        reset_cache_entry(state->unicode_cache + i);
       }
     }
   }
@@ -174,6 +181,7 @@ static void amsgpack_free(void* module) {
   Py_XDECREF(state->file_unpacker_type);
   for (unsigned int i = 0; i < CACHE_TABLE_SIZE; ++i) {
     Py_XDECREF(state->unicode_cache[i].obj);
+    reset_cache_entry(state->unicode_cache + i);  // as a good practice
   }
 }
 
