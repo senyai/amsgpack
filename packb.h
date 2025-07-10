@@ -98,6 +98,7 @@ static PyObject* packb(PyObject* module, PyObject* obj) {
   void* obj_type;
 pack_next:
   obj_type = Py_TYPE(obj);
+pack_next_with_obj_type_set:
   if A_UNLIKELY(obj_type == &PyFloat_Type) {
     // https://docs.python.org/3/c-api/float.html
     AMSGPACK_RESIZE(9);
@@ -105,8 +106,9 @@ pack_next:
     size += 9;
   } else if A_UNLIKELY(obj_type == &PyUnicode_Type) {
     // https://docs.python.org/3.11/c-api/unicode.html
-    Py_ssize_t u8size = 0;
-    char const* u8string = NULL;
+    Py_ssize_t u8size;
+    char const* u8string;
+  obj_is_unicode:
     if A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj)) {
       u8size = ((PyASCIIObject*)obj)->length;
       u8string = (char*)(((PyASCIIObject*)obj) + 1);
@@ -146,8 +148,10 @@ pack_next:
     memcpy(data + size, u8string, u8size);
     size += u8size;
   } else if A_UNLIKELY(obj_type == &PyLong_Type) {
+    long long value;
+  obj_is_long:
     // https://docs.python.org/3/c-api/long.html
-    long long const value = PyLong_AsLongLong(obj);
+    value = PyLong_AsLongLong(obj);
     if A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
       goto error;
     }
@@ -403,7 +407,11 @@ pack_next:
           break;
         }
         obj = item->values[item->pos++];
-        goto pack_next;
+        obj_type = Py_TYPE(obj);
+        if A_LIKELY(obj_type == &PyLong_Type) {
+          goto obj_is_long;
+        }
+        goto pack_next_with_obj_type_set;
       case KEY_NEXT:
         if A_UNLIKELY(item->pos == item->size) {
           stack_length -= 1;
@@ -411,7 +419,11 @@ pack_next:
         }
         PyDict_Next(item->sequence, &item->pos, &obj, &item->value);
         item->action = VALUE_NEXT;
-        goto pack_next;
+        obj_type = Py_TYPE(obj);
+        if A_LIKELY(obj_type == &PyUnicode_Type) {
+          goto obj_is_unicode;
+        }
+        goto pack_next_with_obj_type_set;
       case VALUE_NEXT:
         item->action = KEY_NEXT;
         obj = item->value;
