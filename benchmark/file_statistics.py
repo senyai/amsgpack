@@ -76,6 +76,10 @@ class FileStatistics:
                     raise ValueError(length)
                 for item in obj:
                     self._gather(item, stats)
+                if len(set(type(item) for item in obj)) <= 1:
+                    stats["array_same"] += 1
+                else:
+                    stats["array_different"] += 1
             case dict():
                 length = len(obj)
                 if length <= 15:
