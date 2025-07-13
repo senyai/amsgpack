@@ -796,7 +796,7 @@ static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
   Py_RETURN_NONE;
 }
 
-static void Unpacker_dealloc(Unpacker* self) {
+static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
     Stack* item = self->parser.stack + (--self->parser.stack_length);
@@ -806,6 +806,46 @@ static void Unpacker_dealloc(Unpacker* self) {
     }
     memset(item, 0, sizeof(Stack));
   }
+  Py_RETURN_NONE;
+}
+
+static PyObject* unpacker_unpackb(Unpacker* self, PyObject* obj) {
+  if A_UNLIKELY(PyBytes_CheckExact(obj) == 0) {
+    PyObject* bytes_obj = PyBytes_FromObject(obj);
+    if (bytes_obj == NULL) {
+      PyErr_Format(PyExc_TypeError, "an obj object is required, not '%.100s'",
+                   Py_TYPE(obj)->tp_name);
+      return NULL;
+    }
+    obj = bytes_obj;
+  } else {
+    Py_INCREF(obj);  // so we can safely decref it later in this function
+  }
+  int const append_result = deque_append(&self->deque, obj);
+  Py_DECREF(obj);
+  if A_UNLIKELY(append_result < 0) {
+    return NULL;
+  }
+  PyObject* ret = Unpacker_iternext(self);
+  if (ret == NULL) {
+    if A_UNLIKELY(PyErr_Occurred() == NULL) {
+      PyErr_SetString(PyExc_ValueError, "Incomplete Message Pack format");
+    }
+    goto error;
+  }
+  if A_UNLIKELY(self->deque.deque_first != NULL) {
+    PyErr_SetString(PyExc_ValueError, "Extra data");
+    goto error;
+  }
+  unpacker_reset(self, NULL);
+  return ret;
+error:
+  unpacker_reset(self, NULL);
+  return NULL;
+}
+
+static void Unpacker_dealloc(Unpacker* self) {
+  Py_DECREF(unpacker_reset(self, NULL));
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
@@ -822,65 +862,25 @@ static void Unpacker_dealloc(Unpacker* self) {
 #undef DAYS_PER_100Y
 #undef DAYS_PER_4Y
 
-static PyObject* unpackb(PyObject* restrict module, PyObject* restrict args,
-                         PyObject* restrict kwargs) {
-  PyObject* obj = NULL;
-  if A_UNLIKELY(!PyArg_ParseTuple(args, "O:unpackb", &obj)) {
-    return NULL;
-  }
-
-  if (PyBytes_CheckExact(obj) == 0) {
-    PyObject* bytes_obj = PyBytes_FromObject(obj);
-    if (bytes_obj == NULL) {
-      PyErr_Format(PyExc_TypeError, "an obj object is required, not '%.100s'",
-                   Py_TYPE(obj)->tp_name);
-      return NULL;
-    }
-    obj = bytes_obj;
-  } else {
-    Py_INCREF(obj);  // so we can safely decref it later in this function
-  }
-  AMsgPackState* state = get_amsgpack_state(module);
-  PyObject* no_args = state->byte_object[EMPTY_TUPLE_IDX];
-
-  Unpacker* unpacker =
-      (Unpacker*)Unpacker_new(state->unpacker_type, no_args, kwargs);
-  if A_UNLIKELY(unpacker == NULL) {
-    Py_DECREF(obj);
-    return NULL;
-  }
-  int const append_result = deque_append(&unpacker->deque, obj);
-  Py_DECREF(obj);
-  if A_UNLIKELY(append_result < 0) {
-    return NULL;
-  }
-  PyObject* ret = Unpacker_iternext(unpacker);
-  if (ret == NULL) {
-    if A_UNLIKELY(PyErr_Occurred() == NULL) {
-      PyErr_SetString(PyExc_ValueError, "Incomplete Message Pack format");
-    }
-    goto error;
-  }
-  if A_UNLIKELY(unpacker->deque.deque_first != NULL) {
-    PyErr_SetString(PyExc_ValueError, "Extra data");
-    goto error;
-  }
-  Py_DECREF(unpacker);
-  return ret;
-error:
-  Py_DECREF(unpacker);
-  return NULL;
-}
-
 /*
   Unpacker class
 */
 PyDoc_STRVAR(unpacker_feed_doc,
              "feed($self, bytes, /)\n--\n\n"
-             "Append ``bytes`` to internal buffer.");
+             "Append ``bytes`` to internal queue.");
+PyDoc_STRVAR(unpacker_unpackb_doc,
+             "unpackb($self, data, /)\n--\n\n"
+             "Deserialize ``data`` (a ``bytes`` object) to a Python object. By "
+             "calling '__next__' one time and ensuring there's no more data");
+PyDoc_STRVAR(unpacker_reset_doc,
+             "reset($self, /)\n--\n\n"
+             "Cleans up internal queue, that was filled by `feed` method and "
+             "and cleans up stack, that might've been filled by `__next__`");
 
 static PyMethodDef Unpacker_Methods[] = {
     {"feed", (PyCFunction)&unpacker_feed, METH_O, unpacker_feed_doc},
+    {"unpackb", (PyCFunction)&unpacker_unpackb, METH_O, unpacker_unpackb_doc},
+    {"reset", (PyCFunction)&unpacker_reset, METH_NOARGS, unpacker_reset_doc},
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
