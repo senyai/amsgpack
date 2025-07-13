@@ -202,7 +202,7 @@ class UnpackbTest(SequenceTestCase):
             unpackb(b"\xcc", 1)
         self.assertEqual(
             str(context.exception),
-            "unpackb() takes exactly 1 argument (2 given)",
+            "Unpacker.unpackb() takes exactly one argument (2 given)",
         )
 
     def test_invalid_type(self):

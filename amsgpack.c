@@ -60,14 +60,9 @@ static PyObject* AnyUnpacker_iter(PyObject* self) {
 PyDoc_STRVAR(amsgpack_packb_doc,
              "packb($module, obj, /)\n--\n\n"
              "Serialize ``obj`` to a MessagePack formatted ``bytes``.");
-PyDoc_STRVAR(amsgpack_unpackb_doc,
-             "unpackb($module, data, /, *, tuple: bool = True)\n--\n\n"
-             "Deserialize ``data`` (a ``bytes`` object) to a Python object.");
 
 static PyMethodDef amsgpack_methods[] = {
     {"packb", (PyCFunction)packb, METH_O, amsgpack_packb_doc},
-    {"unpackb", (PyCFunction)(PyCFunction)(void (*)(void))unpackb,
-     METH_VARARGS | METH_KEYWORDS, amsgpack_unpackb_doc},
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
@@ -129,6 +124,15 @@ static int amsgpack_exec(PyObject* module) {
   ADD_TYPE(Unpacker, unpacker);
   ADD_TYPE(FileUnpacker, file_unpacker);
 #undef ADD_TYPE
+  PyObject* unpacker = PyObject_CallNoArgs((PyObject*)state->unpacker_type);
+  if A_UNLIKELY(unpacker == NULL) {
+    return -1;
+  }
+  PyObject* unpackb = PyObject_GetAttrString(unpacker, "unpackb");
+  Py_DECREF(unpacker);
+  if (PyModule_AddObjectRef(module, "unpackb", unpackb) < 0) {
+    return -1;
+  }
   return 0;
 }
 
