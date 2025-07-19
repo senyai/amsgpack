@@ -69,8 +69,7 @@ static PyMethodDef amsgpack_methods[] = {
 // returns: -1 - failure
 //           0 - success
 static inline int amsgpack_init_state(AMsgPackState* state) {
-  int i = -32;
-  for (; i != 128; ++i) {
+  for (int i = -32; i != 128; ++i) {
     PyObject* number = PyLong_FromLong(i);
     if A_UNLIKELY(number == NULL) {
       return -1;
