@@ -30,6 +30,7 @@ typedef struct {
   PyTypeObject* raw_type;
   PyTypeObject* unpacker_type;
   PyTypeObject* file_unpacker_type;
+  PyTypeObject* timestamp_type;
   int_fast8_t gc_cycle;
   CacheEntry unicode_cache[CACHE_TABLE_SIZE];
 } AMsgPackState;
@@ -60,22 +61,16 @@ static PyObject* AnyUnpacker_iter(PyObject* self) {
 PyDoc_STRVAR(amsgpack_packb_doc,
              "packb($module, obj, /)\n--\n\n"
              "Serialize ``obj`` to a MessagePack formatted ``bytes``.");
-PyDoc_STRVAR(amsgpack_unpackb_doc,
-             "unpackb($module, data, /, *, tuple: bool = True)\n--\n\n"
-             "Deserialize ``data`` (a ``bytes`` object) to a Python object.");
 
 static PyMethodDef amsgpack_methods[] = {
     {"packb", (PyCFunction)packb, METH_O, amsgpack_packb_doc},
-    {"unpackb", (PyCFunction)(PyCFunction)(void (*)(void))unpackb,
-     METH_VARARGS | METH_KEYWORDS, amsgpack_unpackb_doc},
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
 // returns: -1 - failure
 //           0 - success
 static inline int amsgpack_init_state(AMsgPackState* state) {
-  int i = -32;
-  for (; i != 128; ++i) {
+  for (int i = -32; i != 128; ++i) {
     PyObject* number = PyLong_FromLong(i);
     if A_UNLIKELY(number == NULL) {
       return -1;
@@ -128,7 +123,17 @@ static int amsgpack_exec(PyObject* module) {
   ADD_TYPE(Raw, raw);
   ADD_TYPE(Unpacker, unpacker);
   ADD_TYPE(FileUnpacker, file_unpacker);
+  ADD_TYPE(Timestamp, timestamp);
 #undef ADD_TYPE
+  PyObject* unpacker = PyObject_CallNoArgs((PyObject*)state->unpacker_type);
+  if A_UNLIKELY(unpacker == NULL) {
+    return -1;
+  }
+  PyObject* unpackb = PyObject_GetAttrString(unpacker, "unpackb");
+  Py_DECREF(unpacker);
+  if (PyModule_AddObjectRef(module, "unpackb", unpackb) < 0) {
+    return -1;
+  }
   return 0;
 }
 
@@ -179,6 +184,7 @@ static void amsgpack_free(void* module) {
   Py_XDECREF(state->raw_type);
   Py_XDECREF(state->unpacker_type);
   Py_XDECREF(state->file_unpacker_type);
+  Py_XDECREF(state->timestamp_type);
   for (unsigned int i = 0; i < CACHE_TABLE_SIZE; ++i) {
     Py_XDECREF(state->unicode_cache[i].obj);
     reset_cache_entry(state->unicode_cache + i);  // as a good practice
