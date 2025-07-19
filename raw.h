@@ -7,7 +7,7 @@ typedef struct {
 } Raw;
 
 static PyMemberDef Raw_members[] = {
-    {"data", T_OBJECT_EX, offsetof(Raw, data), READONLY, "Raw data"},
+    {"data", T_OBJECT_EX, offsetof(Raw, data), READONLY, "Raw data (bytes)"},
     {NULL, 0, 0, 0, NULL}  // Sentinel
 };
 
@@ -42,9 +42,17 @@ static PyObject *Raw_richcompare(Raw *self, PyObject *other, int op) {
   return PyObject_RichCompare(self->data, other, op);
 }
 
+PyDoc_STRVAR(
+    Raw_doc,
+    "Raw type for :func:`packb`. When packer sees :class:`Raw` type, it "
+    "inserts its :attr:`data` as is.\n\n.. code-block:: python\n\n"
+    "   >>> from amsgpack import Raw, packb\n"
+    "   >>> packb(Raw(b'Hello'))\n"
+    "   b'Hello'\n");
+
 BEGIN_NO_PEDANTIC
 static PyType_Slot Raw_slots[] = {
-    {Py_tp_doc, PyDoc_STR("Raw type for packb")},
+    {Py_tp_doc, (char *)Raw_doc},
     {Py_tp_new, PyType_GenericNew},
     {Py_tp_dealloc, (destructor)Raw_dealloc},
     {Py_tp_init, (initproc)Raw_init},

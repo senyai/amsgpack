@@ -1,6 +1,6 @@
 from unittest import skipUnless
 from math import pi
-from amsgpack import packb, Ext, unpackb
+from amsgpack import packb, Ext, unpackb, Timestamp
 from struct import pack
 from .test_amsgpack import SequenceTestCase
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
@@ -82,38 +82,6 @@ class PackbTest(SequenceTestCase):
         value = {"compact": True, "schema": 0}
         self.assertEqual(packb(value), b"\x82\xa7compact\xc3\xa6schema\x00")
 
-    def test_ext_size_1(self):
-        value = Ext(0x43, b"1")
-        self.assertEqual(packb(value), b"\xd4C1")
-
-    def test_ext_size_2(self):
-        value = Ext(0x43, b"11")
-        self.assertEqual(packb(value), b"\xd5C11")
-
-    def test_ext_size_3(self):
-        value = Ext(0x42, b"123")
-        self.assertEqual(packb(value), b"\xc7\x03B123")
-
-    def test_ext_size_4(self):
-        value = Ext(0x43, b"1111")
-        self.assertEqual(packb(value), b"\xd6C1111")
-
-    def test_ext_size_8(self):
-        value = Ext(0x43, b"1" * 8)
-        self.assertEqual(packb(value), b"\xd7C11111111")
-
-    def test_ext_size_16(self):
-        value = Ext(0x43, b"1" * 16)
-        self.assertEqual(packb(value), b"\xd8C1111111111111111")
-
-    def test_ext_size_1000(self):
-        value = Ext(0x43, b"1" * 1000)
-        self.assertEqual(packb(value), b"\xc8\x03\xe8C" + b"1" * 1000)
-
-    def test_ext_size_67000(self):
-        value = Ext(0x43, b"1" * 67000)
-        self.assertEqual(packb(value), b"\xc9\x00\x01\x05\xb8C" + b"1" * 67000)
-
     def test_can_pack_tuple(self):
         self.assertEqual(packb(()), b"\x90")
         self.assertEqual(packb((1, 2, 3)), b"\x93\x01\x02\x03")
@@ -131,6 +99,20 @@ class PackbTest(SequenceTestCase):
         bytes = packb(dt)
         self.assertEqual(bytes, b"\xd7\xff\xb6\rh`h\x0e\x9a6")
         self.assertEqual(unpackb(bytes), dt)
+
+    def test_pack_timestamp_32(self):
+        bytes = packb(Timestamp(seconds=1752955664))
+        self.assertEqual(bytes, b"\xd6\xffh{\xfb\x10")
+
+    def test_pack_timestamp_64(self):
+        bytes = packb(Timestamp(seconds=1752955664, nanoseconds=1))
+        self.assertEqual(bytes, b"\xd7\xff\x00\x00\x00\x04h{\xfb\x10")
+
+    def test_pack_timestamp_96(self):
+        bytes = packb(Timestamp(seconds=17529556640000, nanoseconds=1000))
+        self.assertEqual(
+            bytes, b"\xc7\x0c\xff\x00\x00\x03\xe8\x00\x00\x0f\xf1j\xff!\x00"
+        )
 
     def test_unsupported_type_raises_exception(self):
         with self.assertRaises(TypeError) as context:

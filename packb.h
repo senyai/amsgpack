@@ -1,5 +1,3 @@
-#include <datetime.h>
-
 #include "ext.h"
 #include "raw.h"
 
@@ -51,25 +49,6 @@ static inline void put9(char* dst, char header, uint64_t value) {
 
 static inline void put9_dbl(char* dst, char header, double value) {
   put9_bytes(dst, header, (char const*)&value);
-}
-
-// 60 * 60 * 24
-#define SECONDS_PER_DAY 86400
-// 365*400 + 97
-#define DAYS_PER_400_YEARS 146097
-
-static int64_t days_since_epoch(int year, int month, int day) {
-  if (month <= 2) {
-    year--;
-    month += 12;
-  }
-
-  int era = year / 400;
-  int yoe = year - era * 400;
-  int doy = (153 * (month - 3) + 2) / 5 + day - 1;
-  int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-
-  return era * DAYS_PER_400_YEARS + doe - 719468;
 }
 
 typedef struct {
@@ -362,39 +341,64 @@ pack_next_with_obj_type_set:
     AMSGPACK_RESIZE(raw_length);
     memcpy(data + size, PyBytes_AS_STRING(((Raw*)obj)->data), raw_length);
     size += raw_length;
-  } else if A_UNLIKELY(PyDateTime_CheckExact(obj)) {
-    int const year = PyDateTime_GET_YEAR(obj);
-    int const month = PyDateTime_GET_MONTH(obj);
-    int const day = PyDateTime_GET_DAY(obj);
-    int const hour = PyDateTime_DATE_GET_HOUR(obj);
-    int const minute = PyDateTime_DATE_GET_MINUTE(obj);
-    int const second = PyDateTime_DATE_GET_SECOND(obj);
-    int const microsecond = PyDateTime_DATE_GET_MICROSECOND(obj);
-    int64_t const days = days_since_epoch(year, month, day);
-    int64_t const total_seconds =
-        days * SECONDS_PER_DAY + hour * 3600 + minute * 60 + second;
-    uint64_t const nanoseconds = (uint64_t)microsecond * 1000;
-    uint64_t const timestamp64 =
-        ((nanoseconds & 0x3FFFFFFF) << 34) | (total_seconds & 0x3FFFFFFFF);
-
-    AMSGPACK_RESIZE(10);
-    // packing fixext 8
-    data[size] = '\xd7';
-    data[size + 1] = '\xff';
-    data[size + 2 + 0] = (timestamp64 >> 070) & 0xff;
-    data[size + 2 + 1] = (timestamp64 >> 060) & 0xff;
-    data[size + 2 + 2] = (timestamp64 >> 050) & 0xff;
-    data[size + 2 + 3] = (timestamp64 >> 040) & 0xff;
-    data[size + 2 + 4] = (timestamp64 >> 030) & 0xff;
-    data[size + 2 + 5] = (timestamp64 >> 020) & 0xff;
-    data[size + 2 + 6] = (timestamp64 >> 010) & 0xff;
-    data[size + 2 + 7] = (timestamp64 >> 000) & 0xff;
-    size += 10;
+  } else if A_UNLIKELY(PyDateTime_CheckExact(obj) ||
+                       obj_type == state->timestamp_type) {
+    MsgPackTimestamp const ts = obj_type == state->timestamp_type
+                                    ? ((Timestamp*)obj)->timestamp
+                                    : datetime_to_timestamp(obj);
+    if A_LIKELY((ts.seconds >> 34) == 0) {
+      uint64_t const timestamp64 = ((int64_t)ts.nanosec << 34) | ts.seconds;
+      if A_LIKELY((timestamp64 & 0xffffffff00000000L) != 0) {
+        // timestamp 64
+        AMSGPACK_RESIZE(10);
+        // packing fixext 8
+        data[size] = '\xd7';
+        data[size + 1] = '\xff';
+        data[size + 2 + 0] = (timestamp64 >> 070) & 0xff;
+        data[size + 2 + 1] = (timestamp64 >> 060) & 0xff;
+        data[size + 2 + 2] = (timestamp64 >> 050) & 0xff;
+        data[size + 2 + 3] = (timestamp64 >> 040) & 0xff;
+        data[size + 2 + 4] = (timestamp64 >> 030) & 0xff;
+        data[size + 2 + 5] = (timestamp64 >> 020) & 0xff;
+        data[size + 2 + 6] = (timestamp64 >> 010) & 0xff;
+        data[size + 2 + 7] = (timestamp64 >> 000) & 0xff;
+        size += 10;
+      } else {
+        // timestamp 32
+        AMSGPACK_RESIZE(6);
+        // packing fixext 4
+        data[size] = '\xd6';
+        data[size + 1] = '\xff';
+        data[size + 2 + 0] = (timestamp64 >> 030) & 0xff;
+        data[size + 2 + 1] = (timestamp64 >> 020) & 0xff;
+        data[size + 2 + 2] = (timestamp64 >> 010) & 0xff;
+        data[size + 2 + 3] = (timestamp64 >> 000) & 0xff;
+        size += 6;
+      }
+    } else {
+      // timestamp 96
+      AMSGPACK_RESIZE(15);
+      // packing ext 8
+      data[size] = '\xc7';
+      data[size + 1] = '\x0c';
+      data[size + 2] = '\xff';
+      data[size + 3 + 0] = (ts.nanosec >> 030) & 0xff;
+      data[size + 3 + 1] = (ts.nanosec >> 020) & 0xff;
+      data[size + 3 + 2] = (ts.nanosec >> 010) & 0xff;
+      data[size + 3 + 3] = (ts.nanosec >> 000) & 0xff;
+      data[size + 3 + 4] = (ts.seconds >> 070) & 0xff;
+      data[size + 3 + 5] = (ts.seconds >> 060) & 0xff;
+      data[size + 3 + 6] = (ts.seconds >> 050) & 0xff;
+      data[size + 3 + 7] = (ts.seconds >> 040) & 0xff;
+      data[size + 3 + 8] = (ts.seconds >> 030) & 0xff;
+      data[size + 3 + 9] = (ts.seconds >> 020) & 0xff;
+      data[size + 3 + 10] = (ts.seconds >> 010) & 0xff;
+      data[size + 3 + 11] = (ts.seconds >> 000) & 0xff;
+      size += 15;
+    }
   } else {
-    PyObject* errorMessage = PyUnicode_FromFormat("Unserializable '%s' object",
-                                                  Py_TYPE(obj)->tp_name);
-    PyErr_SetObject(PyExc_TypeError, errorMessage);
-    Py_XDECREF(errorMessage);
+    PyErr_Format(PyExc_TypeError, "Unserializable '%s' object",
+                 Py_TYPE(obj)->tp_name);
     goto error;
   }
 

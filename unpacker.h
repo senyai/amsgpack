@@ -84,6 +84,8 @@ typedef struct {
   Stack stack[A_STACK_SIZE];
 } Parser;
 
+#include "ext.h"
+
 static inline int can_not_append_stack(Parser const* parser) {
   return parser->stack_length >= A_STACK_SIZE;
 }
@@ -94,45 +96,8 @@ typedef struct {
   Parser parser;
   AMsgPackState* state;
   int use_tuple;
+  PyObject* ext_hook;
 } Unpacker;
-
-typedef union A_WORD {
-  int16_t s;
-  uint16_t us;
-  char bytes[2];
-} A_WORD;
-typedef char check_word_size[sizeof(A_WORD) == 2 ? 1 : -1];
-
-static inline A_WORD read_a_word(char const* data) {
-  return (A_WORD){.bytes = {data[1], data[0]}};
-}
-
-typedef union A_DWORD {
-  int32_t l;
-  uint32_t ul;
-  float f;
-  char bytes[4];
-} A_DWORD;
-
-typedef char check_dword_size[sizeof(A_DWORD) == 4 ? 1 : -1];
-
-static inline A_DWORD read_a_dword(char const* data) {
-  return (A_DWORD){.bytes = {data[3], data[2], data[1], data[0]}};
-}
-
-typedef union A_QWORD {
-  int64_t ll;
-  uint64_t ull;
-  double d;
-  char bytes[8];
-} A_QWORD;
-
-static inline A_QWORD read_a_qword(char const* data) {
-  return (A_QWORD){.bytes = {data[7], data[6], data[5], data[4], data[3],
-                             data[2], data[1], data[0]}};
-}
-
-typedef char check_qword_size[sizeof(A_QWORD) == 8 ? 1 : -1];
 
 static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
   return PyErr_Format(PyExc_ValueError, "%s size %zd is too big (>%zd)", type,
@@ -157,148 +122,6 @@ static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
       PyMem_Free(allocated);                           \
     }                                                  \
   } while (0)
-
-#define READ_A_WORD           \
-  A_WORD word;                \
-  do {                        \
-    READ_A_DATA(2);           \
-    word = read_a_word(data); \
-    FREE_A_DATA(2);           \
-  } while (0)
-
-#define READ_A_DWORD            \
-  A_DWORD dword;                \
-  do {                          \
-    READ_A_DATA(4);             \
-    dword = read_a_dword(data); \
-    FREE_A_DATA(4);             \
-  } while (0)
-
-#define READ_A_QWORD            \
-  A_QWORD qword;                \
-  do {                          \
-    READ_A_DATA(8);             \
-    qword = read_a_qword(data); \
-    FREE_A_DATA(8);             \
-  } while (0)
-
-#pragma pack(push, 4)
-typedef union {
-  struct {
-    int64_t seconds : 64;
-    uint32_t nanosec : 32;
-  };
-  char bytes[12];
-} TIMESTAMP96;
-#pragma pack(pop)
-
-typedef char _check_timestamp_96_size[sizeof(TIMESTAMP96) == 12 ? 1 : -1];
-
-typedef struct {
-  int64_t seconds;
-  uint32_t nanosec;
-} MsgPackTimestamp;
-
-static inline MsgPackTimestamp parse_timestamp(char const* data,
-                                               Py_ssize_t data_length) {
-  MsgPackTimestamp timestamp;
-  if (data_length == 8) {
-    A_QWORD const timestamp64 = read_a_qword(data);
-    timestamp.seconds = timestamp64.ull & 0x3ffffffff;  // 34 bits
-    timestamp.nanosec = timestamp64.ull >> 34;          // 30 bits
-  } else if (data_length == 4) {
-    A_DWORD const timestamp32 = read_a_dword(data);
-    timestamp.seconds = (int64_t)timestamp32.ul;
-    timestamp.nanosec = 0;
-  } else if (data_length == 12) {
-    TIMESTAMP96 const timestamp96 = {
-        .bytes = {data[11], data[10], data[9], data[8], data[7], data[6],
-                  data[5], data[4], data[3], data[2], data[1], data[0]}};
-    timestamp.seconds = timestamp96.seconds;
-    timestamp.nanosec = timestamp96.nanosec;
-  } else {             // GCOVR_EXCL_LINE
-    Py_UNREACHABLE();  // GCOVR_EXCL_LINE
-  }
-  return timestamp;
-}
-
-#define DIV_ROUND_CLOSEST_POS(n, d) (((n) + (d) / 2) / (d))
-/* 2000-03-01 (mod 400 year, immediately after feb29 */
-#define LEAPOCH (946684800LL + 86400 * (31 + 29))
-#define DAYS_PER_400Y (365 * 400 + 97)
-#define DAYS_PER_100Y (365 * 100 + 24)
-#define DAYS_PER_4Y (365 * 4 + 1)
-
-static PyObject* ext_to_timestamp(char const* data, Py_ssize_t data_length) {
-  MsgPackTimestamp ts = parse_timestamp(data, data_length);
-  if A_UNLIKELY(ts.seconds < -62135596800 || ts.seconds > 253402300800) {
-    PyErr_SetString(PyExc_ValueError, "timestamp out of range");
-    return NULL;
-  }
-  int64_t years, days, secs;
-  int micros = 0, months, remyears, remdays, remsecs;
-  int qc_cycles, c_cycles, q_cycles;
-
-  if (ts.nanosec != 0) {
-    micros = DIV_ROUND_CLOSEST_POS(ts.nanosec, 1000);
-    if (micros == 1000000) {
-      micros = 0;
-      ts.seconds++;
-    }
-  }
-
-  static const char days_in_month[] = {31, 30, 31, 30, 31, 31,
-                                       30, 31, 30, 31, 31, 29};
-
-  secs = ts.seconds - LEAPOCH;
-  days = secs / 86400;
-  remsecs = secs % 86400;
-  if (remsecs < 0) {
-    remsecs += 86400;
-    days--;
-  }
-
-  qc_cycles = days / DAYS_PER_400Y;
-  remdays = days % DAYS_PER_400Y;
-  if (remdays < 0) {
-    remdays += DAYS_PER_400Y;
-    qc_cycles--;
-  }
-
-  c_cycles = remdays / DAYS_PER_100Y;
-  if (c_cycles == 4) {
-    c_cycles--;
-  }
-  remdays -= c_cycles * DAYS_PER_100Y;
-
-  q_cycles = remdays / DAYS_PER_4Y;
-  if (q_cycles == 25) {
-    q_cycles--;
-  }
-  remdays -= q_cycles * DAYS_PER_4Y;
-
-  remyears = remdays / 365;
-  if (remyears == 4) {
-    remyears--;
-  }
-  remdays -= remyears * 365;
-
-  years = remyears + 4 * q_cycles + 100 * c_cycles + 400LL * qc_cycles;
-
-  for (months = 0; days_in_month[months] <= remdays; months++) {
-    remdays -= days_in_month[months];
-  }
-
-  if (months >= 10) {
-    months -= 12;
-    years++;
-  }
-
-  return PyDateTimeAPI->DateTime_FromDateAndTime(
-      years + 2000, months + 3, remdays + 1, remsecs / 3600, remsecs / 60 % 60,
-      remsecs % 60, micros, PyDateTime_TimeZone_UTC,
-      PyDateTimeAPI->DateTimeType);
-}
 
 static PyObject* Unpacker_iternext(Unpacker* self) {
   int parse_a_key = 0;
@@ -611,29 +434,30 @@ parse_next_with_next_byte_set:
     length_ext: {
       READ_A_DATA(length.ext + 1);
       char const code = data[0];
-      if (code == -1 &&
-          (length.ext == 8 || length.ext == 4 || length.ext == 12)) {
-        parsed_object = ext_to_timestamp(data + 1, length.ext);
-        if A_UNLIKELY(parsed_object == NULL) {
-          PyMem_Free(allocated);
-          return NULL;  // likely overflow error
-        }
-      } else {
-        Ext* ext = PyObject_New(Ext, self->state->ext_type);
-        if A_UNLIKELY(ext == NULL) {
-          PyMem_Free(allocated);
-          return NULL;  // Allocation failed
-        }
-        ext->code = code;
-        ext->data = PyBytes_FromStringAndSize(data + 1, length.ext);
-        if A_UNLIKELY(ext->data == NULL) {
-          Py_DECREF(ext);
-          PyMem_Free(allocated);
-          return NULL;
-        }
-        parsed_object = (PyObject*)ext;
+      Ext* ext = PyObject_New(Ext, self->state->ext_type);
+      if A_UNLIKELY(ext == NULL) {
+        PyMem_Free(allocated);
+        return NULL;  // Allocation failed, likely
       }
+      ext->code = code;
+      ext->data = PyBytes_FromStringAndSize(data + 1, length.ext);
+      if A_UNLIKELY(ext->data == NULL) {
+        Py_DECREF(ext);
+        PyMem_Free(allocated);
+        return NULL;
+      }
+      PyObject* new_ext;
+      if A_LIKELY(self->ext_hook == NULL) {
+        new_ext = Ext_default(ext, NULL);
+      } else {
+        new_ext = PyObject_CallOneArg(self->ext_hook, (PyObject*)ext);
+      }
+      Py_DECREF(ext);
+      parsed_object = (PyObject*)new_ext;
       FREE_A_DATA(length.ext + 1);
+      if A_UNLIKELY(parsed_object == NULL) {
+        return NULL;  // likely exception in user supplied code
+      }
       break;
     }
     case '\xd9':  // str 8
@@ -758,30 +582,27 @@ parse_next_with_next_byte_set:
   return parsed_object;
 }
 
-static PyObject* Unpacker_new(PyTypeObject* type, PyObject* args,
-                              PyObject* kwargs) {
-  static char* keywords[] = {"tuple", NULL};
-  int use_tuple = 0;
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$p:Unpacker", keywords,
-                                   &use_tuple)) {
-    return NULL;
+// static struct PyModuleDef amsgpack_module;
+
+static int Unpacker_init(Unpacker* self, PyObject* args, PyObject* kwargs) {
+  static char* keywords[] = {"tuple", "ext_hook", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$pO:Unpacker", keywords,
+                                   &self->use_tuple, &self->ext_hook)) {
+    return -1;
+  }
+  if A_UNLIKELY(self->ext_hook != NULL &&
+                Py_TYPE(self->ext_hook)->tp_call == NULL) {
+    PyErr_SetString(PyExc_TypeError, "`ext_hook` must be callable");
+    return -1;
   }
 
-  Unpacker* self = (Unpacker*)type->tp_alloc(type, 0);
-
-  if A_LIKELY(self != NULL) {
-    // zerofilled by python
-    // init deque
-    // memset(&self->deque, 0, sizeof(Deque));
-    // init parser
-    // memset(&self->parser, 0, sizeof(Parser));
-    self->state = PyType_GetModuleState(type);
-    if A_UNLIKELY(self->state == NULL) {
-      return NULL;
-    };
-    self->use_tuple = use_tuple;
-  }
-  return (PyObject*)self;
+  self->state =
+      get_amsgpack_state(((PyHeapTypeObject*)Py_TYPE(self))->ht_module);
+  if A_UNLIKELY(self->state == NULL) {
+    return -1;
+  };
+  Py_XINCREF(self->ext_hook);
+  return 0;
 }
 
 static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
@@ -797,6 +618,7 @@ static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
 }
 
 static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
+  Py_CLEAR(self->ext_hook);
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
     Stack* item = self->parser.stack + (--self->parser.stack_length);
@@ -829,7 +651,7 @@ static PyObject* unpacker_unpackb(Unpacker* self, PyObject* obj) {
   PyObject* ret = Unpacker_iternext(self);
   if (ret == NULL) {
     if A_UNLIKELY(PyErr_Occurred() == NULL) {
-      PyErr_SetString(PyExc_ValueError, "Incomplete Message Pack format");
+      PyErr_SetString(PyExc_ValueError, "Incomplete MessagePack format");
     }
     goto error;
   }
@@ -856,11 +678,6 @@ static void Unpacker_dealloc(Unpacker* self) {
 #undef READ_A_WORD
 #undef READ_A_DWORD
 #undef READ_A_QWORD
-#undef DIV_ROUND_CLOSEST_POS
-#undef LEAPOCH
-#undef DAYS_PER_400Y
-#undef DAYS_PER_100Y
-#undef DAYS_PER_4Y
 
 /*
   Unpacker class
@@ -872,10 +689,11 @@ PyDoc_STRVAR(unpacker_unpackb_doc,
              "unpackb($self, data, /)\n--\n\n"
              "Deserialize ``data`` (a ``bytes`` object) to a Python object. By "
              "calling '__next__' one time and ensuring there's no more data");
-PyDoc_STRVAR(unpacker_reset_doc,
-             "reset($self, /)\n--\n\n"
-             "Cleans up internal queue, that was filled by `feed` method and "
-             "and cleans up stack, that might've been filled by `__next__`");
+PyDoc_STRVAR(
+    unpacker_reset_doc,
+    "reset($self, /)\n--\n\n"
+    "Cleans up internal queue, that was filled by :meth:`feed` method and "
+    "and cleans up stack, that might've been filled by :meth:`__next__`");
 
 static PyMethodDef Unpacker_Methods[] = {
     {"feed", (PyCFunction)&unpacker_feed, METH_O, unpacker_feed_doc},
@@ -884,10 +702,20 @@ static PyMethodDef Unpacker_Methods[] = {
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
+PyDoc_STRVAR(Unpacker_doc,
+             "Unpacker(tuple = False, ext_hook = None)\n"
+             "--\n"
+             "\n"
+             "Unpack bytes to python objects.\n"
+             "\n"
+             "The optional *tuple* argument tells the :class:`Unpacker` to "
+             "output sequences as ``tuple``, instead of ``list``");
+
 BEGIN_NO_PEDANTIC
 static PyType_Slot Unpacker_slots[] = {
-    {Py_tp_doc, PyDoc_STR("Unpack bytes to python objects")},
-    {Py_tp_new, Unpacker_new},
+    {Py_tp_doc, (char*)Unpacker_doc},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_init, Unpacker_init},
     {Py_tp_dealloc, (destructor)Unpacker_dealloc},
     {Py_tp_methods, Unpacker_Methods},
     {Py_tp_iter, AnyUnpacker_iter},

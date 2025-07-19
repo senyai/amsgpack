@@ -86,3 +86,28 @@ class FileUnpackerTest(TestCase):
         unpacker = amsgpack.FileUnpacker(infinite_file, 1024, tuple=True)
         self.assertEqual(next(unpacker), (-1,))
         self.assertEqual(infinite_file.size, 1024)
+
+    def test_read_raises_exception(self):
+        class InvalidFile:
+            def read(self, size: int | None = -1, /):
+                raise ValueError("Oops")
+
+        invalid_file = InvalidFile()
+        unpacker = amsgpack.FileUnpacker(invalid_file, 1024)
+        with self.assertRaises(ValueError) as context:
+            next(unpacker)
+        self.assertEqual(str(context.exception), "Oops")
+
+    def test_incorrect_data(self):
+        class IncorrectData:
+            def read(self, size: int | None = -1, /):
+                return b"\x00\xc1"
+
+        invalid_file = IncorrectData()
+        unpacker = amsgpack.FileUnpacker(invalid_file, 1024)
+        next(unpacker)
+        with self.assertRaises(ValueError) as context:
+            next(unpacker)
+        self.assertEqual(
+            str(context.exception), "amsgpack: 0xc1 byte must not be used"
+        )
