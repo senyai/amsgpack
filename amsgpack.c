@@ -30,6 +30,7 @@ typedef struct {
   PyTypeObject* raw_type;
   PyTypeObject* unpacker_type;
   PyTypeObject* file_unpacker_type;
+  PyTypeObject* timestamp_type;
   int_fast8_t gc_cycle;
   CacheEntry unicode_cache[CACHE_TABLE_SIZE];
 } AMsgPackState;
@@ -122,6 +123,7 @@ static int amsgpack_exec(PyObject* module) {
   ADD_TYPE(Raw, raw);
   ADD_TYPE(Unpacker, unpacker);
   ADD_TYPE(FileUnpacker, file_unpacker);
+  ADD_TYPE(Timestamp, timestamp);
 #undef ADD_TYPE
   PyObject* unpacker = PyObject_CallNoArgs((PyObject*)state->unpacker_type);
   if A_UNLIKELY(unpacker == NULL) {
@@ -182,6 +184,7 @@ static void amsgpack_free(void* module) {
   Py_XDECREF(state->raw_type);
   Py_XDECREF(state->unpacker_type);
   Py_XDECREF(state->file_unpacker_type);
+  Py_XDECREF(state->timestamp_type);
   for (unsigned int i = 0; i < CACHE_TABLE_SIZE; ++i) {
     Py_XDECREF(state->unicode_cache[i].obj);
     reset_cache_entry(state->unicode_cache + i);  // as a good practice
