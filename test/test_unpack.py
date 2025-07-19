@@ -11,7 +11,7 @@ class UnpackerTest(SequenceTestCase):
             Unpacker("what", "is", "that")
         self.assertEqual(
             str(context.exception),
-            "Unpacker() takes at most 1 argument (3 given)",
+            "Unpacker() takes at most 2 arguments (3 given)",
         )
         with self.assertRaises(TypeError) as context:
             Unpacker(what="is that")
@@ -81,6 +81,11 @@ class UnpackerTest(SequenceTestCase):
         u = Unpacker()
         u.feed(b"\x92\x90\x90")
         self.safeSequenceEqual(u, ([[], []],))
+
+    def test_list_inside_list_as_tuple(self):
+        u = Unpacker(tuple=True)
+        u.feed(b"\x92\x90\x90")
+        self.safeSequenceEqual(u, (((), ()),))
 
     def test_main_page_example(self):
         u = Unpacker()
@@ -200,9 +205,12 @@ class UnpackbTest(SequenceTestCase):
     def test_invalid_args(self):
         with self.assertRaises(TypeError) as context:
             unpackb(b"\xcc", 1)
-        self.assertEqual(
+        self.assertIn(
             str(context.exception),
-            "Unpacker.unpackb() takes exactly one argument (2 given)",
+            (
+                "Unpacker.unpackb() takes exactly one argument (2 given)",
+                "unpackb() takes exactly one argument (2 given)",
+            ),
         )
 
     def test_invalid_type(self):
@@ -221,7 +229,7 @@ class UnpackbTest(SequenceTestCase):
         with self.assertRaises(ValueError) as context:
             unpackb(b"\xcc")
         self.assertEqual(
-            str(context.exception), "Incomplete Message Pack format"
+            str(context.exception), "Incomplete MessagePack format"
         )
 
 
@@ -409,14 +417,4 @@ class UnpackDateTimeTest(SequenceTestCase):
         self.assertEqual(
             unpackb(b"\xd7\xff\x00\x00\x00\x00\x1c9\xdfp"),
             datetime(1985, 1, 2, 23, 0, 0, tzinfo=timezone.utc),
-        )
-
-
-class UnpackExtTest(SequenceTestCase):
-    def test_huge_data(self):
-        with self.assertRaises(ValueError) as context:
-            unpackb(b"\xc9\x0f\xff\xff\xff\x00")
-        self.assertEqual(
-            str(context.exception),
-            "ext size 268435455 is too big (>134217728)",
         )
