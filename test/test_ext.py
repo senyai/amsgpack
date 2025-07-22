@@ -8,7 +8,7 @@ class ExtTest(TestCase):
         with self.assertRaises(TypeError) as context:
             Ext(127, "123")
         self.assertEqual(
-            str(context.exception), "a bytes object is required, not 'str'"
+            str(context.exception), "Ext() argument 2 must be bytes, not str"
         )
 
     def test_arguments_exception(self):
