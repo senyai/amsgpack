@@ -80,11 +80,24 @@ static void FileUnpacker_dealloc(FileUnpacker* self) {
   Py_XDECREF(self->read_size);
   Unpacker_dealloc(&self->unpacker);
 }
+PyDoc_STRVAR(FileUnpacker_doc,
+             "FileUnpacker(file, read_size, tuple = False, ext_hook = None)\n"
+             "--\n\n"
+             "Iteratively unpack binary stream to python objects:\n\n"
+             ">>> from amsgpack import FileUnpacker\n"
+             ">>> from io import BytesIO\n"
+             ">>> for data in FileUnpacker(BytesIO(b'\\x00\\x01\\x02')):\n"
+             "...     print(data)\n"
+             "...\n"
+             "0\n"
+             "1\n"
+             "2\n"
+
+);
 
 BEGIN_NO_PEDANTIC
 static PyType_Slot FileUnpacker_slots[] = {
-    {Py_tp_doc,
-     PyDoc_STR("Iteratively unpack binary stream to python objects")},
+    {Py_tp_doc, (char*)FileUnpacker_doc},
     {Py_tp_new, PyType_GenericNew},
     {Py_tp_init, FileUnpacker_init},
     {Py_tp_dealloc, (destructor)FileUnpacker_dealloc},

@@ -38,11 +38,14 @@ static PyObject *Raw_richcompare(Raw *self, PyObject *other, int op) {
 
 PyDoc_STRVAR(
     Raw_doc,
+    "Raw(data)\n"
+    "--\n\n"
     "Raw type for :func:`packb`. When packer sees :class:`Raw` type, it "
-    "inserts its :attr:`data` as is.\n\n.. code-block:: python\n\n"
-    "   >>> from amsgpack import Raw, packb\n"
-    "   >>> packb(Raw(b'Hello'))\n"
-    "   b'Hello'\n");
+    "inserts its :attr:`data` as is.\n"
+    "\n"
+    ">>> from amsgpack import Raw, packb\n"
+    ">>> packb(Raw(b'Hello'))\n"
+    "b'Hello'\n");
 
 BEGIN_NO_PEDANTIC
 static PyType_Slot Raw_slots[] = {

@@ -189,7 +189,7 @@ PyDoc_STRVAR(
     Ext_default_doc,
     "default($self, /)\n--\n\n"
     "Returns ``datetime.datetime`` object, when :attr:`code` equals -1 and "
-    ":attr:`data` size is equal 4, 8 or 12");
+    ":attr:`data` size is 4, 8 or 12");
 PyDoc_STRVAR(Ext_is_timestamp_doc,
              "is_timestamp($self, /)\n--\n\n"
              "Returns ``True`` when :attr:`code` equals -1 and "
@@ -206,19 +206,27 @@ static PyMethodDef Ext_methods[] = {
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
+PyDoc_STRVAR(Ext_doc,
+             "Ext(code, data)\n"
+             "--\n\n"
+             "Ext type from MessagePack specification\n"
+             "\n"
+             ">>> from amsgpack import Ext, packb\n"
+             ">>> packb(Ext(code=95, data=b'amsgpack'))\n"
+             "b'\\xd7_amsgpack'");
+
 BEGIN_NO_PEDANTIC
-static PyType_Slot Ext_slots[] = {
-    {Py_tp_doc, PyDoc_STR("Ext type from MessagePack specification")},
-    {Py_tp_new, PyType_GenericNew},
-    {Py_tp_dealloc, Ext_dealloc},
-    {Py_tp_init, Ext_init},
-    {Py_tp_repr, Ext_repr},
-    {Py_tp_members, Ext_members},
-    {Py_tp_methods, Ext_methods},
-    {Py_tp_hash, Ext_hash},
-    {Py_tp_richcompare, Ext_richcompare},
-    {Py_tp_new, PyType_GenericNew},
-    {0, NULL}};
+static PyType_Slot Ext_slots[] = {{Py_tp_doc, (char *)Ext_doc},
+                                  {Py_tp_new, PyType_GenericNew},
+                                  {Py_tp_dealloc, Ext_dealloc},
+                                  {Py_tp_init, Ext_init},
+                                  {Py_tp_repr, Ext_repr},
+                                  {Py_tp_members, Ext_members},
+                                  {Py_tp_methods, Ext_methods},
+                                  {Py_tp_hash, Ext_hash},
+                                  {Py_tp_richcompare, Ext_richcompare},
+                                  {Py_tp_new, PyType_GenericNew},
+                                  {0, NULL}};
 END_NO_PEDANTIC
 
 static PyType_Spec Ext_spec = {

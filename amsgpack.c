@@ -196,9 +196,18 @@ static void amsgpack_free(void* module) {
   }
 }
 
+PyDoc_STRVAR(amsgpack_doc,
+             "It's like JSON.\n"
+             "but fast and small.\n\n"
+             "   >>> from amsgpack import packb, unpackb\n"
+             "   >>> packb({\"compact\": True, \"schema\": 0})\n"
+             "   b'\\x82\\xa7compact\\xc3\\xa6schema\\x00'\n"
+             "   >>> unpackb(b'\\x82\\xa7compact\\xc3\\xa6schema\\x00')\n"
+             "   {'compact': True, 'schema': 0}\n");
+
 static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
                                              .m_name = "amsgpack",
-                                             .m_doc = NULL,
+                                             .m_doc = amsgpack_doc,
                                              .m_size = sizeof(AMsgPackState),
                                              .m_slots = amsgpack_slots,
                                              .m_traverse = amsgpack_traverse,
