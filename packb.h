@@ -52,7 +52,12 @@ static inline void put9_dbl(char* dst, char header, double value) {
 }
 
 typedef struct {
-  enum PackAction { LIST_OR_TUPLE_NEXT, KEY_NEXT, VALUE_NEXT } action;
+  enum PackAction {
+    LIST_OR_TUPLE_NEXT,
+    KEY_NEXT,
+    VALUE_NEXT,
+    DEFAULT_NEXT
+  } action;
   union {
     PyObject* sequence;
     PyObject** values;
@@ -62,7 +67,39 @@ typedef struct {
   PyObject* value;  // holds value from PyDict_Next
 } PackbStack;
 
-static PyObject* packb(PyObject* module, PyObject* obj) {
+typedef struct {
+  PyObject_HEAD
+  AMsgPackState* state;
+  PyObject* default_hook;
+} Packer;
+
+static int Packer_init(Packer* self, PyObject* args, PyObject* kwargs) {
+  static char* keywords[] = {"default", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:Packer", keywords,
+                                   &self->default_hook)) {
+    return -1;
+  }
+  Py_XINCREF(self->default_hook);
+  if A_UNLIKELY(self->default_hook != NULL &&
+                Py_TYPE(self->default_hook)->tp_call == NULL) {
+    Py_DECREF(self->default_hook);
+    PyErr_SetString(PyExc_TypeError, "`default` must be callable");
+    return -1;
+  }
+  self->state =
+      get_amsgpack_state(((PyHeapTypeObject*)Py_TYPE(self))->ht_module);
+  if A_UNLIKELY(self->state == NULL) {
+    return -1;
+  };
+  return 0;
+}
+
+static void Packer_dealloc(Packer* self) {
+  Py_XDECREF(self->default_hook);
+  Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+static PyObject* packer_packb(Packer* self, PyObject* obj) {
   Py_ssize_t capacity = 1024;
   Py_ssize_t size = 0;
   PyObject* buffer_py = PyBytes_FromStringAndSize(NULL, capacity);
@@ -72,7 +109,7 @@ static PyObject* packb(PyObject* module, PyObject* obj) {
   char* data = PyBytes_AS_STRING(buffer_py);
 
   PackbStack stack[A_STACK_SIZE];
-  AMsgPackState const* state = get_amsgpack_state(module);
+  AMsgPackState const* state = self->state;
   unsigned int stack_length = 0;
   void* obj_type;
 pack_next:
@@ -396,10 +433,23 @@ pack_next_with_obj_type_set:
       data[size + 3 + 11] = (ts.seconds >> 000) & 0xff;
       size += 15;
     }
-  } else {
+  } else if A_LIKELY(self->default_hook == NULL) {
     PyErr_Format(PyExc_TypeError, "Unserializable '%s' object",
                  Py_TYPE(obj)->tp_name);
     goto error;
+  } else {
+    if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
+      PyErr_SetString(PyExc_ValueError, "Deeply nested object");
+      goto error;
+    }
+    PyObject* new_obj = PyObject_CallOneArg(self->default_hook, obj);
+    if A_UNLIKELY(new_obj == NULL) {
+      return NULL;  // likely exception in user code
+    }
+    Py_DECREF(obj);
+    obj = new_obj;
+    stack[stack_length++] = (PackbStack){.action = DEFAULT_NEXT};
+    goto pack_next;
   }
 
   while (stack_length) {
@@ -432,6 +482,9 @@ pack_next_with_obj_type_set:
         item->action = KEY_NEXT;
         obj = item->value;
         goto pack_next;
+      case DEFAULT_NEXT:
+        stack_length -= 1;
+        break;
       default:             // GCOVR_EXCL_LINE
         Py_UNREACHABLE();  // GCOVR_EXCL_LINE
     }
@@ -444,5 +497,51 @@ error:
   Py_XDECREF(buffer_py);
   return NULL;
 }
+
+PyDoc_STRVAR(packer_packb_doc,
+             "packb($self, obj, /)\n--\n\n"
+             "Serialize ``obj`` to a MessagePack formatted ``bytes``.");
+
+static PyMethodDef Packer_Methods[] = {
+    {"packb", (PyCFunction)&packer_packb, METH_O, packer_packb_doc},
+    {NULL, NULL, 0, NULL}  // Sentinel
+};
+
+PyDoc_STRVAR(Packer_doc,
+             "Packer(default=None)\n--\n\n"
+             "Class for holding ``default`` callback for :meth:`unpackb` to "
+             "use. The ``amsgpack.packb`` function is created using::\n\n"
+             "  packb = Packer().packb\n\n"
+             "\n"
+             "Default callback example:\n\n"
+             ">>> from typing import Any\n"
+             ">>> from amsgpack import Ext, Packer\n"
+             ">>> from array import array\n"
+             ">>>\n"
+             ">>> def default(value: Any) -> Ext:\n"
+             "...     if isinstance(value, array):\n"
+             "...         return Ext(1, value.tobytes())\n"
+             "...     raise ValueError(f\"Unserializable object: {value}\")\n"
+             "...\n"
+             ">>> packb = Packer(default=default).packb\n"
+             ">>> packb(array('I', [0xBA, 0xDE]))\n"
+             "b'\\xd7\\x01\\xba\\x00\\x00\\x00\\xde\\x00\\x00\\x00'\n");
+
+BEGIN_NO_PEDANTIC
+static PyType_Slot Packer_slots[] = {
+    {Py_tp_doc, (char*)Packer_doc},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_init, Packer_init},
+    {Py_tp_dealloc, (destructor)Packer_dealloc},
+    {Py_tp_methods, Packer_Methods},
+    {0, NULL}};
+END_NO_PEDANTIC
+
+static PyType_Spec Packer_spec = {
+    .name = "amsgpack.Packer",
+    .basicsize = sizeof(Packer),
+    .flags = Py_TPFLAGS_DEFAULT,
+    .slots = Packer_slots,
+};
 
 #undef AMSGPACK_RESIZE
