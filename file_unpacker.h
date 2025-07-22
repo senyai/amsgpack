@@ -8,7 +8,6 @@ typedef struct {
 
 static int FileUnpacker_init(FileUnpacker* self, PyObject* args,
                              PyObject* kwargs) {
-  PyObject* no_args = PyTuple_New(0);
   PyObject* file = NULL;
   PyObject* read_size = NULL;
   if (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
@@ -17,7 +16,7 @@ static int FileUnpacker_init(FileUnpacker* self, PyObject* args,
 
   PyObject* read_callback = PyObject_GetAttrString(file, "read");
   if A_UNLIKELY(read_callback == NULL) {
-    return -1;
+    return -1;  // PyObject_GetAttrString already set the exception
   }
 
   if A_UNLIKELY(Py_TYPE(read_callback)->tp_call == NULL) {
@@ -27,6 +26,7 @@ static int FileUnpacker_init(FileUnpacker* self, PyObject* args,
     return -1;
   }
 
+  PyObject* no_args = PyTuple_New(0);
   if A_UNLIKELY(no_args == NULL) {
     return -1;  // GCOVR_EXCL_LINE
   }
