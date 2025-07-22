@@ -1,3 +1,7 @@
+<h1 align="center">
+<img src="https://raw.githubusercontent.com/senyai/amsgpack/main/doc/amsgpack.svg" width="300">
+</h1><br>
+
 ## amsgpack - Python MessagePack module
 
 C library for python 3.10+.
