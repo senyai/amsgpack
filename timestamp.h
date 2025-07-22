@@ -220,16 +220,17 @@ static PyObject *Timestamp_repr(Timestamp *self) {
 }
 
 PyDoc_STRVAR(Timestamp_doc,
-             "Timestamp extension type from MessagePack specification.\n\n"
-             ".. code-block::\n\n"
-             "   >>> from amsgpack import Timestamp, packb\n"
-             "   >>> ts = Timestamp(seconds=1752955664)\n"
-             "   >>> ts\n"
-             "   Timestamp(seconds=1752955664, nanoseconds=0)\n"
-             "   >>> packb(ts)\n"
-             "   b'\\xd6\\xffh{\\xfb\\x10'\n"
-             "   >>> unpackb(packb(ts))\n"
-             "   datetime.datetime(2025, 7, 19, 20, 7, 44, "
+             "Timestamp(seconds, nanoseconds)\n"
+             "--\n\n"
+             "Timestamp extension type from MessagePack specification:\n\n"
+             ">>> from amsgpack import Timestamp, packb\n"
+             ">>> ts = Timestamp(seconds=1752955664)\n"
+             ">>> ts\n"
+             "Timestamp(seconds=1752955664, nanoseconds=0)\n"
+             ">>> packb(ts)\n"
+             "b'\\xd6\\xffh{\\xfb\\x10'\n"
+             ">>> unpackb(packb(ts))\n"
+             "datetime.datetime(2025, 7, 19, 20, 7, 44, "
              "tzinfo=datetime.timezone.utc)\n\n"
              "See ``ext_hook`` on how to return :class:`Timestamp` instead of "
              "``datetime.datetime``");

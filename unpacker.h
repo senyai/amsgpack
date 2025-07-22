@@ -704,12 +704,29 @@ static PyMethodDef Unpacker_Methods[] = {
 
 PyDoc_STRVAR(Unpacker_doc,
              "Unpacker(tuple = False, ext_hook = None)\n"
-             "--\n"
-             "\n"
+             "--\n\n"
              "Unpack bytes to python objects.\n"
              "\n"
              "The optional *tuple* argument tells the :class:`Unpacker` to "
-             "output sequences as ``tuple``, instead of ``list``");
+             "output sequences as ``tuple`` instead of ``list``. The "
+             "``amsgpack.unpackb`` function is created using::\n\n"
+             "  unpackb = Unpacker().unpackb\n\n"
+             "\n"
+             "ext_hook example:\n"
+             "\n"
+             ""
+             ">>> from amsgpack import Ext, Unpacker\n"
+             ">>> from array import array\n"
+             ">>>\n"
+             ">>> def ext_hook(ext: Ext):\n"
+             "...     if ext.code == 1:\n"
+             "...         return array(\"I\", ext.data)\n"
+             "...     return ext.default()\n"
+             "...\n"
+             ">>> Unpacker(ext_hook=ext_hook).unpackb(\n"
+             "...     b\"\\xd7\\x01\\xba\\x00\\x00\\x00\\xde\\x00\\x00\\x00\"\n"
+             "... )\n"
+             "array('I', [186, 222])\n");
 
 BEGIN_NO_PEDANTIC
 static PyType_Slot Unpacker_slots[] = {
