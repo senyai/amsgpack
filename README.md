@@ -1,4 +1,4 @@
-## amsgpack - Python Message Pack module
+## amsgpack - Python MessagePack module
 
 C library for python 3.10+.
 
