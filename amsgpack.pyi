@@ -1,5 +1,12 @@
-from typing import TypeAlias, Final, Protocol, Any, Callable, final
-from collections.abc import Sequence
+from typing import (
+    TypeAlias,
+    Final,
+    Protocol,
+    Callable,
+    final,
+    TypeVar,
+    Generic,
+)
 from datetime import datetime
 
 __version__: str
@@ -38,35 +45,50 @@ class Raw:
 Immutable: TypeAlias = (
     str | int | float | bool | Ext | Raw | datetime | Timestamp | None
 )
-Value: TypeAlias = dict[Immutable, "Value"] | Sequence["Value"] | Immutable
-ExtHook: TypeAlias = Callable[[Ext], Any] | None
+Value: TypeAlias = (
+    dict[Immutable, "Value"] | list["Value"] | tuple["Value"] | Immutable
+)
+
+TP = TypeVar("TP", default=Value)
 
 @final
-class Unpacker:
+class Packer(Generic[TP]):
     def __init__(
-        self, *, tuple: bool = False, ext_hook: ExtHook = None
+        self, default: Callable[[TP], Value] | None = None
+    ) -> None: ...
+    def packb(self, obj: Value | TP) -> bytes: ...
+
+TU = TypeVar("TU", default=Ext)
+
+@final
+class Unpacker(Generic[TU]):
+    def __init__(
+        self,
+        *,
+        tuple: bool = False,
+        ext_hook: Callable[[Ext], TU] | None = None,
     ) -> None: ...
     def feed(self, data: bytes) -> None: ...
     def reset(self) -> None: ...
-    def unpackb(self, obj: bytes) -> Value: ...
+    def unpackb(self, obj: bytes) -> Value | TU: ...
     def __iter__(self) -> "Unpacker": ...
-    def __next__(self) -> Value: ...
+    def __next__(self) -> Value | TU: ...
 
 class BinaryStream(Protocol):
     def read(self, size: int | None = -1, /) -> bytes: ...
 
 @final
-class FileUnpacker:
+class FileUnpacker(Generic[TU]):
     def __init__(
         self,
         file: BinaryStream,
         size: int | None = -1,
         *,
         tuple: bool = False,
-        ext_hook: ExtHook = None,
+        ext_hook: Callable[[Ext], TU] | None = None,
     ) -> None: ...
-    def __iter__(self) -> FileUnpacker: ...
-    def __next__(self) -> Value: ...
+    def __iter__(self) -> FileUnpacker[TU]: ...
+    def __next__(self) -> Value | TU: ...
 
 def packb(obj: Value) -> bytes: ...
 def unpackb(obj: bytes) -> Value: ...
