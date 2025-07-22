@@ -12,18 +12,12 @@ static PyMemberDef Raw_members[] = {
 };
 
 static int Raw_init(Raw *self, PyObject *args, PyObject *kwargs) {
-  PyObject *bytes = NULL;
   static char *kwlist[] = {"data", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kwlist, &bytes)) {
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!", kwlist, &PyBytes_Type,
+                                   &self->data)) {
     return -1;
   }
-  if A_UNLIKELY(PyBytes_CheckExact(bytes) == 0) {
-    PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
-                 Py_TYPE(bytes)->tp_name);
-    return -1;
-  }
-  Py_INCREF(bytes);
-  self->data = bytes;
+  Py_INCREF(self->data);
   return 0;
 }
 

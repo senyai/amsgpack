@@ -32,7 +32,7 @@ class RawTest(TestCase):
         with self.assertRaises(TypeError) as context:
             Raw("123")
         self.assertEqual(
-            str(context.exception), "a bytes object is required, not 'str'"
+            str(context.exception), "argument 1 must be bytes, not str"
         )
 
     def test_arguments_exception(self):
