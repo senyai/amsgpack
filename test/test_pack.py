@@ -1,6 +1,7 @@
+from typing import Any
 from unittest import skipUnless
 from math import pi
-from amsgpack import packb, Ext, unpackb, Timestamp
+from amsgpack import packb, Ext, unpackb, Timestamp, Packer
 from struct import pack
 from .test_amsgpack import SequenceTestCase
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
@@ -142,6 +143,27 @@ class PackbTest(SequenceTestCase):
     def test_initial_buffer_failure(self):
         with self.assertRaises(MemoryError), failing_malloc(1023, "raw"):
             packb(0)
+
+    def test_default_simple(self):
+        from array import array
+
+        def default(value: Any) -> Ext:
+            if isinstance(value, array):
+                return Ext(1, value.tobytes())
+            raise ValueError(f"Unserializable object: {value}")
+
+        packb = Packer(default=default).packb
+        res = packb(array("I", b"\x02" * 8))
+        self.assertEqual(res, b"\xd7\x01" + b"\x02" * 8)
+
+        with self.assertRaises(ValueError):
+            packb(...)
+
+    def test_default_recursive(self):
+        packb = Packer(default=lambda a: a).packb
+        with self.assertRaises(ValueError) as context:
+            packb(...)
+        self.assertRegex(str(context.exception), "Deeply nested object")
 
 
 class PackbIntTest(SequenceTestCase):

@@ -28,6 +28,7 @@ typedef struct {
   PyObject* byte_object[256];
   PyTypeObject* ext_type;
   PyTypeObject* raw_type;
+  PyTypeObject* packer_type;
   PyTypeObject* unpacker_type;
   PyTypeObject* file_unpacker_type;
   PyTypeObject* timestamp_type;
@@ -57,15 +58,6 @@ static PyObject* AnyUnpacker_iter(PyObject* self) {
 /*
   amsgpack module
 */
-
-PyDoc_STRVAR(amsgpack_packb_doc,
-             "packb($module, obj, /)\n--\n\n"
-             "Serialize ``obj`` to a MessagePack formatted ``bytes``.");
-
-static PyMethodDef amsgpack_methods[] = {
-    {"packb", (PyCFunction)packb, METH_O, amsgpack_packb_doc},
-    {NULL, NULL, 0, NULL}  // Sentinel
-};
 
 // returns: -1 - failure
 //           0 - success
@@ -121,10 +113,12 @@ static int amsgpack_exec(PyObject* module) {
 
   ADD_TYPE(Ext, ext);
   ADD_TYPE(Raw, raw);
+  ADD_TYPE(Packer, packer);
   ADD_TYPE(Unpacker, unpacker);
   ADD_TYPE(FileUnpacker, file_unpacker);
   ADD_TYPE(Timestamp, timestamp);
 #undef ADD_TYPE
+  // create `unpackb`
   PyObject* unpacker = PyObject_CallNoArgs((PyObject*)state->unpacker_type);
   if A_UNLIKELY(unpacker == NULL) {
     return -1;
@@ -132,6 +126,16 @@ static int amsgpack_exec(PyObject* module) {
   PyObject* unpackb = PyObject_GetAttrString(unpacker, "unpackb");
   Py_DECREF(unpacker);
   if (PyModule_AddObjectRef(module, "unpackb", unpackb) < 0) {
+    return -1;
+  }
+  // create `packb`
+  PyObject* packer = PyObject_CallNoArgs((PyObject*)state->packer_type);
+  if A_UNLIKELY(packer == NULL) {
+    return -1;
+  }
+  PyObject* packb = PyObject_GetAttrString(packer, "packb");
+  Py_DECREF(packer);
+  if (PyModule_AddObjectRef(module, "packb", packb) < 0) {
     return -1;
   }
   return 0;
@@ -182,6 +186,7 @@ static void amsgpack_free(void* module) {
   }
   Py_XDECREF(state->ext_type);
   Py_XDECREF(state->raw_type);
+  Py_XDECREF(state->packer_type);
   Py_XDECREF(state->unpacker_type);
   Py_XDECREF(state->file_unpacker_type);
   Py_XDECREF(state->timestamp_type);
@@ -195,7 +200,6 @@ static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
                                              .m_name = "amsgpack",
                                              .m_doc = NULL,
                                              .m_size = sizeof(AMsgPackState),
-                                             .m_methods = amsgpack_methods,
                                              .m_slots = amsgpack_slots,
                                              .m_traverse = amsgpack_traverse,
                                              .m_free = amsgpack_free};
