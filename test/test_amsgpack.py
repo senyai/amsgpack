@@ -32,7 +32,7 @@ class RawTest(TestCase):
         with self.assertRaises(TypeError) as context:
             Raw("123")
         self.assertEqual(
-            str(context.exception), "argument 1 must be bytes, not str"
+            str(context.exception), "Raw() argument 1 must be bytes, not str"
         )
 
     def test_arguments_exception(self):
@@ -40,7 +40,7 @@ class RawTest(TestCase):
             Raw(code=1, data=b"123")
         self.assertEqual(
             str(context.exception),
-            "function takes at most 1 keyword argument (2 given)",
+            "Raw() takes at most 1 keyword argument (2 given)",
         )
 
     def test_single_raw(self):
