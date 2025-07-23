@@ -1,7 +1,7 @@
 import sys
 from setuptools import setup, Extension
 
-with open("amsgpack.c") as f:
+with open("src/amsgpack.c") as f:
     for line in f:
         if line.startswith("#define VERSION"):
             version = line.split('"')[-2]
@@ -28,7 +28,7 @@ if sys.platform != "win32":
 
 module = Extension(
     "amsgpack",
-    sources=["amsgpack.c"],
+    sources=["src/amsgpack.c"],
     extra_compile_args=extra_compile_args,
 )
 

@@ -222,7 +222,8 @@ static PyObject* import_amsgpack(void) {
   Py_InitializeEx(0);
   PyObject* module = PyImport_ImportModule("amsgpack");
   assert(module != NULL);
-  PyModule_ExecDef(module, &amsgpack_module);
+  int const exec_def_ret = PyModule_ExecDef(module, &amsgpack_module);
+  assert(exec_def_ret == 0);
   return module;
 }
 
@@ -232,13 +233,13 @@ int LLVMFuzzerTestOneInput(uint8_t const* data, size_t size) {
   if (module == NULL) {
     module = import_amsgpack();
   }
-  PyObject* no_args = PyTuple_New(0);
-  PyObject* no_kwargs = PyDict_New();
+  assert(PyErr_Occurred() == NULL);
   AMsgPackState* state = get_amsgpack_state(module);
   Unpacker* unpacker =
-      (Unpacker*)Unpacker_new(state->unpacker_type, no_args, no_kwargs);
-  Py_DECREF(no_args);
-  Py_DECREF(no_kwargs);
+      (Unpacker*)PyObject_CallNoArgs((PyObject*)state->unpacker_type);
+  if (unpacker == NULL) {
+    PyErr_Print();
+  }
   assert(unpacker != NULL);
   {
     for (size_t data_idx = 0; data_idx < size; data_idx += 3) {
@@ -264,6 +265,7 @@ int LLVMFuzzerTestOneInput(uint8_t const* data, size_t size) {
     }
   };
   Py_DECREF(unpacker);
+  PyErr_Clear();
   return 0;
 }
 
