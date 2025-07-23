@@ -1,3 +1,4 @@
-include src
-include benchmark/*.svg
+include src/*.h
+exclude benchmark/*
+include benchmark/*-0.2.0.svg
 exclude test/*.py
