@@ -13,8 +13,8 @@ static PyMemberDef Raw_members[] = {
 
 static int Raw_init(Raw *self, PyObject *args, PyObject *kwargs) {
   static char *kwlist[] = {"data", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!", kwlist, &PyBytes_Type,
-                                   &self->data)) {
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:Raw", kwlist,
+                                   &PyBytes_Type, &self->data)) {
     return -1;
   }
   Py_INCREF(self->data);
