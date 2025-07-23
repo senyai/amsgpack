@@ -1,8 +1,8 @@
 <h1 align="center">
 <img src="https://raw.githubusercontent.com/senyai/amsgpack/main/doc/amsgpack.svg" width="300">
-</h1><br>
+</h1>
 
-## amsgpack - Python MessagePack module
+## Python MessagePack module
 
 C library for python 3.10+.
 
@@ -45,6 +45,45 @@ b'\x82\xa7compact\xc3\xa6schema\x00'
 >>> unpacker.feed(b'\x82\xa7compact\xc3\xa6schema\x00')
 >>> next(unpacker)
 {'compact': True, 'schema': 0}
+```
+
+### Ext Type Packing
+
+When encountering unsupported type a `default` callback is called:
+
+``` python
+>>> from typing import Any
+>>> from amsgpack import Ext, Packer
+>>> from array import array
+>>>
+>>> def default(value: Any) -> Ext:
+...     if isinstance(value, array):
+...         return Ext(1, value.tobytes())
+...     raise ValueError(f"Unserializable object: {value}")
+...
+>>> packb = Packer(default=default).packb
+>>> packb(array('I', [0xBA, 0xDE]))
+b'\xd7\x01\xba\x00\x00\x00\xde\x00\x00\x00'
+```
+
+### Ext Type Unpacking
+
+By default when encountering `Ext` type, a conversion to `datetime.datetime`
+happens when `code == 1`, otherwise `Ext` instance is returned.
+
+``` python
+>>> from amsgpack import Ext, Unpacker
+>>> from array import array
+>>>
+>>> def ext_hook(ext: Ext):
+...     if ext.code == 1:
+...         return array("I", ext.data)
+...     return ext.default()
+...
+>>> Unpacker(ext_hook=ext_hook).unpackb(
+...     b"\xd7\x01\xba\x00\x00\x00\xde\x00\x00\x00"
+... )
+array('I', [186, 222])
 ```
 
 ### Benchmark
