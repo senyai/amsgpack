@@ -217,7 +217,8 @@ class UnpackbTest(SequenceTestCase):
         with self.assertRaises(TypeError) as context:
             unpackb("\xcc")
         self.assertEqual(
-            str(context.exception), "an obj object is required, not 'str'"
+            str(context.exception),
+            "unpackb() argument 1 must be bytes, not str",
         )
 
     def test_extra_data(self):

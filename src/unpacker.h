@@ -635,7 +635,8 @@ static PyObject* unpacker_unpackb(Unpacker* self, PyObject* obj) {
   if A_UNLIKELY(PyBytes_CheckExact(obj) == 0) {
     PyObject* bytes_obj = PyBytes_FromObject(obj);
     if (bytes_obj == NULL) {
-      PyErr_Format(PyExc_TypeError, "an obj object is required, not '%.100s'",
+      PyErr_Format(PyExc_TypeError,
+                   "unpackb() argument 1 must be bytes, not %s",
                    Py_TYPE(obj)->tp_name);
       return NULL;
     }
