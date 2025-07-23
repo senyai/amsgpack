@@ -11,11 +11,7 @@ from datetime import datetime
 
 __version__: str
 
-@final
-class Timestamp:
-    def __init__(self, seconds: int, nanoseconds: int = 0) -> None: ...
-    seconds: Final[int]
-    nanoseconds: Final[int]
+class ComparableAndHashable(Protocol):
     def __eq__(self, value: object) -> bool: ...
     def __ge__(self, value: object) -> bool: ...
     def __gt__(self, value: object) -> bool: ...
@@ -23,6 +19,12 @@ class Timestamp:
     def __lt__(self, value: object) -> bool: ...
     def __ne__(self, value: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+@final
+class Timestamp(ComparableAndHashable):
+    def __init__(self, seconds: int, nanoseconds: int = 0) -> None: ...
+    seconds: Final[int]
+    nanoseconds: Final[int]
 
 @final
 class Ext:
@@ -38,15 +40,19 @@ class Ext:
     def __ne__(self, value: object) -> bool: ...
 
 @final
-class Raw:
+class Raw(ComparableAndHashable):
     data: Final[bytes]
     def __init__(self, data: bytes) -> None: ...
 
 Immutable: TypeAlias = (
-    str | int | float | bool | Ext | Raw | datetime | Timestamp | None
+    str | int | float | bool | bytes | Ext | Raw | datetime | Timestamp | None
 )
 Value: TypeAlias = (
-    dict[Immutable, "Value"] | list["Value"] | tuple["Value"] | Immutable
+    dict[Immutable, "Value"]
+    | list["Value"]
+    | tuple["Value", ...]
+    | Immutable
+    | bytearray
 )
 
 TP = TypeVar("TP", default=Value)
