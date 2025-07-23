@@ -17,6 +17,9 @@ Why:
 ### Installation
 `pip install amsgpack`
 
+### Documentation
+
+https://amsgpack.readthedocs.io/
 
 ### Examples
 

@@ -21,6 +21,8 @@ classifiers = [
 ]
 [project.urls]
 "Source" = "https://github.com/senyai/amsgpack"
+"Documentation" = "https://amsgpack.readthedocs.io/"
+"Bug Reports" = "https://github.com/senyai/amsgpack/issues"
 [tool.black]
 line-length = 79
 [tool.setuptools.packages.find]
