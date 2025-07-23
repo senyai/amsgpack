@@ -10,7 +10,7 @@ clang -DAMSGPACK_FUZZER=1\
     -fsanitize=undefined \
     -fPIE \
     $(python3-config --includes) \
-    amsgpack.c $(python3-config --ldflags --embed) \
+    src/amsgpack.c $(python3-config --ldflags --embed) \
     -o amsgpack_fuzzer
 
 mkdir -p corpus
@@ -20,7 +20,7 @@ gcc -DAMSGPACK_FUZZER=1 "-DAMSGPACK_FUZZER_MAIN=1" \
     -g3 -O0 \
     -fPIE \
     $(python3-config --includes) \
-    amsgpack.c $(python3-config --ldflags --embed) \
+    src/amsgpack.c $(python3-config --ldflags --embed) \
     -o amsgpack_fuzzer_file
 
     ./amsgpack_fuzzer_file "$1"

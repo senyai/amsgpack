@@ -1,3 +1,3 @@
-include *.h *.pyi *.typed
+include src
 include benchmark/*.svg
 exclude test/*.py
