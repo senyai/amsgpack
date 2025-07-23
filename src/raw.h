@@ -29,7 +29,7 @@ static void Raw_dealloc(Raw *self) {
 static Py_hash_t Raw_hash(Raw *self) { return PyObject_Hash(self->data); }
 
 static PyObject *Raw_repr(Raw *self) {
-  return PyUnicode_FromFormat("Raw(data=%S)", PyBytes_Type.tp_repr(self->data));
+  return PyUnicode_FromFormat("Raw(data=%R)", self->data);
 }
 
 static PyObject *Raw_richcompare(Raw *self, PyObject *other, int op) {
