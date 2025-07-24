@@ -6,6 +6,8 @@ from typing import (
     final,
     TypeVar,
     Generic,
+    Sequence,
+    Mapping,
 )
 from datetime import datetime
 
@@ -48,9 +50,9 @@ Immutable: TypeAlias = (
     str | int | float | bool | bytes | Ext | Raw | datetime | Timestamp | None
 )
 Value: TypeAlias = (
-    dict[Immutable, "Value"]
-    | list["Value"]
-    | tuple["Value", ...]
+    Mapping[str, Value]
+    | Mapping[Immutable, Value]
+    | Sequence[Value]
     | Immutable
     | bytearray
 )
@@ -76,7 +78,7 @@ class Unpacker(Generic[TU]):
     ) -> None: ...
     def feed(self, data: bytes) -> None: ...
     def reset(self) -> None: ...
-    def unpackb(self, obj: bytes) -> Value | TU: ...
+    def unpackb(self, obj: bytes | memoryview) -> Value | TU: ...
     def __iter__(self) -> "Unpacker": ...
     def __next__(self) -> Value | TU: ...
 
@@ -96,5 +98,5 @@ class FileUnpacker(Generic[TU]):
     def __iter__(self) -> FileUnpacker[TU]: ...
     def __next__(self) -> Value | TU: ...
 
-def packb(obj: Value) -> bytes: ...
-def unpackb(obj: bytes) -> Value: ...
+packb = Packer().packb
+unpackb = Unpacker().unpackb
