@@ -69,6 +69,7 @@ def failing_malloc(
         )
     domain_idx = ("raw", "mem", "obj").index(domain)
     original_allocator = PyMemAllocatorEx()
+    assert pythonapi is not None
     pythonapi.PyMem_GetAllocator(domain_idx, byref(original_allocator))
 
     context = Context(

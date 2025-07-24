@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 from unittest import skipUnless
 from math import pi
 from amsgpack import packb, Ext, unpackb, Timestamp, Packer
@@ -58,14 +58,15 @@ class PackbTest(SequenceTestCase):
         self.assertEqual(unpackb(b"\x80"), {})
 
     def test_dict_0_to_20_el(self):
-        value = {}
+        value: dict[str, int] = {}
         for n in range(21):
-            # value = dict.fromkeys([str(i) for i in range(n)])
             self.assertEqual(unpackb(packb(value)), value)
             value[str(n)] = n
 
     def test_dict_0x10000(self):
-        value = dict.fromkeys([str(i) for i in range(0x10000)])
+        value: dict[str, None] = dict.fromkeys(
+            [str(i) for i in range(0x10000)]
+        )
         self.assertEqual(unpackb(packb(value)), value)
 
     def test_bytes_0_to_20_el(self):
@@ -117,14 +118,14 @@ class PackbTest(SequenceTestCase):
 
     def test_unsupported_type_raises_exception(self):
         with self.assertRaises(TypeError) as context:
-            packb(1j)
+            packb(1j)  # pyright: ignore [reportArgumentType]
         self.assertEqual(
             str(context.exception), "Unserializable 'complex' object"
         )
 
     def test_deep_exception(self):
-        outer = inner = []
-        for i in range(31):
+        outer = inner = cast(list[Any], [])
+        for _ in range(31):
             inner.append([])
             inner = inner[0]
         self.assertEqual(packb(outer), b"\x91" * 31 + b"\x90")
@@ -160,9 +161,12 @@ class PackbTest(SequenceTestCase):
             packb(...)
 
     def test_default_recursive(self):
-        packb = Packer(default=lambda a: a).packb
+        def default(ext: Ext) -> Ext:
+            return ext
+
+        packb = Packer(default=default).packb
         with self.assertRaises(ValueError) as context:
-            packb(...)
+            packb(...)  # pyright: ignore [reportArgumentType]
         self.assertRegex(str(context.exception), "Deeply nested object")
 
 

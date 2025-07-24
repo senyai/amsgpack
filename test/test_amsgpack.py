@@ -30,14 +30,14 @@ class SequenceTestCase(TestCase):
 class RawTest(TestCase):
     def test_unicode_exception(self):
         with self.assertRaises(TypeError) as context:
-            Raw("123")
+            Raw("123")  # pyright: ignore [reportArgumentType]
         self.assertEqual(
             str(context.exception), "Raw() argument 1 must be bytes, not str"
         )
 
     def test_arguments_exception(self):
         with self.assertRaises(TypeError) as context:
-            Raw(code=1, data=b"123")
+            Raw(code=1, data=b"123")  # pyright: ignore [reportCallIssue]
         self.assertEqual(
             str(context.exception),
             "Raw() takes at most 1 keyword argument (2 given)",

@@ -6,14 +6,14 @@ from .test_amsgpack import SequenceTestCase
 class ExtTest(TestCase):
     def test_unicode_exception(self):
         with self.assertRaises(TypeError) as context:
-            Ext(127, "123")
+            Ext(127, "123")  # pyright: ignore [reportArgumentType]
         self.assertEqual(
             str(context.exception), "Ext() argument 2 must be bytes, not str"
         )
 
     def test_arguments_exception(self):
         with self.assertRaises(TypeError) as context:
-            Ext(code=127)
+            Ext(code=127)  # pyright: ignore [reportCallIssue]
         self.assertEqual(
             str(context.exception),
             "Ext() missing required argument 'data' (pos 2)",
@@ -61,15 +61,15 @@ class ExtTest(TestCase):
     def test_attributes_are_readonly(self):
         a = Ext(code=127, data=b"123")
         with self.assertRaises(AttributeError):
-            a.code = 3
+            a.code = 3  # pyright: ignore [reportAttributeAccessIssue]
         with self.assertRaises(AttributeError):
-            a.data = b"x"
+            a.data = b"x"  # pyright: ignore [reportAttributeAccessIssue]
 
     def test_compare_less_exception(self):
         a = Ext(code=127, data=b"123")
         b = Ext(code=126, data=b"123")
         with self.assertRaises(TypeError) as context:
-            a < b
+            a < b  # pyright: ignore [reportUnusedExpression, reportOperatorIssue]
         self.assertIn(
             str(context.exception),
             (
@@ -81,14 +81,14 @@ class ExtTest(TestCase):
     def test_compare_types_exception(self):
         a = Ext(code=127, data=b"123")
         with self.assertRaises(TypeError) as context:
-            a != b"b"
+            a != b"b"  # pyright: ignore [reportUnusedExpression]
         self.assertEqual(
             str(context.exception),
             "other argument must be amsgpack.Ext instance",
         )
 
         with self.assertRaises(TypeError) as context:
-            a == b"b"
+            a == b"b"  # pyright: ignore [reportUnusedExpression]
         self.assertEqual(
             str(context.exception),
             "other argument must be amsgpack.Ext instance",
@@ -96,7 +96,7 @@ class ExtTest(TestCase):
 
     def test_ext_hook_invalid(self):
         with self.assertRaises(TypeError) as context:
-            Unpacker(ext_hook=0)
+            Unpacker(ext_hook=0)  # pyright: ignore [reportArgumentType]
         self.assertEqual(str(context.exception), "`ext_hook` must be callable")
 
     def test_can_be_in_set(self):

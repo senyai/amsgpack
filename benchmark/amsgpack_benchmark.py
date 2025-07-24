@@ -49,6 +49,7 @@ def pack_benchmark(state):
     )[state.range(0)]
     file_label, _, obj = files[state.range(1)]
     state.set_label(f"{func_label}({file_label})")
+    size = 0
     while state:
         size = len(packb_func(obj))
 

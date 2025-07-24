@@ -1,20 +1,23 @@
 from amsgpack import packb, Unpacker, Ext, unpackb
+from typing import TypeAlias, cast
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 from .test_amsgpack import SequenceTestCase
 from unittest import skipUnless
 from datetime import datetime, timezone
 
+RecursiveDict: TypeAlias = "dict[int, RecursiveDict | None]"
+
 
 class UnpackerTest(SequenceTestCase):
     def test_unpacker_gets_no_argumens(self):
         with self.assertRaises(TypeError) as context:
-            Unpacker("what", "is", "that")
+            Unpacker("what", "is", "that")  # pyright: ignore [reportCallIssue]
         self.assertEqual(
             str(context.exception),
             "Unpacker() takes at most 2 arguments (3 given)",
         )
         with self.assertRaises(TypeError) as context:
-            Unpacker(what="is that")
+            Unpacker(what="is that")  # pyright: ignore [reportCallIssue]
         self.assertIn(
             str(context.exception),
             (
@@ -29,7 +32,7 @@ class UnpackerTest(SequenceTestCase):
     def test_feed_non_bytes(self):
         u = Unpacker()
         with self.assertRaises(TypeError) as context:
-            u.feed("")
+            u.feed("")  # pyright: ignore [reportArgumentType]
         self.assertEqual(
             str(context.exception), "a bytes object is required, not 'str'"
         )
@@ -204,7 +207,7 @@ class UnpackbTest(SequenceTestCase):
 
     def test_invalid_args(self):
         with self.assertRaises(TypeError) as context:
-            unpackb(b"\xcc", 1)
+            unpackb(b"\xcc", 1)  # pyright: ignore [reportCallIssue]
         self.assertIn(
             str(context.exception),
             (
@@ -215,7 +218,7 @@ class UnpackbTest(SequenceTestCase):
 
     def test_invalid_type(self):
         with self.assertRaises(TypeError) as context:
-            unpackb("\xcc")
+            unpackb("\xcc")  # pyright: ignore [reportArgumentType]
         self.assertEqual(
             str(context.exception),
             "unpackb() argument 1 must be bytes, not str",
@@ -317,8 +320,11 @@ class UnpackbMapTest(SequenceTestCase):
         )
 
     def test_deeply_nested_okay(self):
-        res = unpackb(b"".join(b"\x81\x00" for _ in range(32)) + b"\xc0")
-        ref = eval("{0:" * 32 + "None" + "}" * 32)
+        res = cast(
+            RecursiveDict,
+            unpackb(b"".join(b"\x81\x00" for _ in range(32)) + b"\xc0"),
+        )
+        ref: RecursiveDict = eval("{0:" * 32 + "None" + "}" * 32)
         self.assertDictEqual(res, ref)
 
     def test_deeply_nested_exception(self):
@@ -358,7 +364,7 @@ class UnpackbArrayTest(SequenceTestCase):
     def test_deeply_nested_okay(self):
         res = unpackb(b"".join(b"\x91" for _ in range(32)) + b"\xc0")
         ref = eval(f"[" * 32 + "None" + "]" * 32)
-        self.assertListEqual(res, ref)
+        self.assertListEqual(res, ref)  # pyright: ignore [reportArgumentType]
 
     def test_deeply_nested_exception(self):
         with self.assertRaises(ValueError) as context:

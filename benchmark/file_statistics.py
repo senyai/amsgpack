@@ -118,8 +118,8 @@ def main():
                 from amsgpack import unpackb
 
                 data = unpackb(path.read_bytes())
-            case _:
-                raise ValueError(_)
+            case suffix:
+                raise ValueError(suffix)
 
         stats = FileStatistics(data)
         print(f"\n{path}:")

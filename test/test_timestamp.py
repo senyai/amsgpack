@@ -75,7 +75,9 @@ class TimestampTest(TestCase):
     def test_can_not_subclass(self):
         with self.assertRaises(TypeError):
 
-            class SuperTimestamp(Timestamp):
+            class SuperTimestamp(  # pyright: ignore [reportUnusedClass]
+                Timestamp  # pyright: ignore [reportGeneralTypeIssues]
+            ):
                 pass
 
     def test_can_be_in_set(self):
