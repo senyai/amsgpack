@@ -33,14 +33,16 @@ class FileUnpackerTest(TestCase):
 
     def test_file_is_none(self):
         with self.assertRaises(AttributeError) as context:
-            amsgpack.FileUnpacker(None)
+            amsgpack.FileUnpacker(None)  # pyright: ignore [reportArgumentType]
         self.assertEqual(
             str(context.exception),
             "'NoneType' object has no attribute 'read'",
         )
 
     def test_read_returns_str(self):
-        unpacker = amsgpack.FileUnpacker(BadFileStr())
+        unpacker = amsgpack.FileUnpacker(
+            BadFileStr()  # pyright: ignore [reportArgumentType]
+        )
         with self.assertRaises(TypeError) as context:
             next(unpacker)
         self.assertEqual(
@@ -50,7 +52,9 @@ class FileUnpackerTest(TestCase):
 
     def test_read_not_callable(self):
         with self.assertRaises(TypeError) as context:
-            amsgpack.FileUnpacker(BadFileNotCallable())
+            amsgpack.FileUnpacker(
+                BadFileNotCallable()  # pyright: ignore [reportArgumentType]
+            )
         self.assertEqual(
             str(context.exception),
             "`BadFileNotCallable.read` must be callable",
@@ -58,7 +62,10 @@ class FileUnpackerTest(TestCase):
 
     def test_pass_kwargs(self):
         with self.assertRaises(TypeError) as context:
-            amsgpack.FileUnpacker(BadFileStr(), unicorn=True)
+            amsgpack.FileUnpacker(
+                BadFileStr(),
+                unicorn=True,  # pyright: ignore [reportCallIssue]
+            )
         self.assertIn(
             str(context.exception),
             (
@@ -69,7 +76,7 @@ class FileUnpackerTest(TestCase):
 
     def test_no_arguments(self):
         with self.assertRaises(TypeError) as context:
-            amsgpack.FileUnpacker()
+            amsgpack.FileUnpacker()  # pyright: ignore [reportCallIssue]
         self.assertEqual(
             str(context.exception),
             "FileUnpacker() takes at least 1 argument (0 given)",
