@@ -99,6 +99,58 @@ static void Packer_dealloc(Packer* self) {
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
+#define PACK_LONG_LONG()                          \
+  if (value >= -0x20) {                           \
+    if (value < 0x80) {                           \
+      /* fixint */                                \
+      AMSGPACK_RESIZE(1);                         \
+      data[size] = (char)value;                   \
+      size += 1;                                  \
+    } else if (value <= 0xff) {                   \
+      /* uint 8 */                                \
+      AMSGPACK_RESIZE(2);                         \
+      put2(data + size, '\xcc', (uint8_t)value);  \
+      size += 2;                                  \
+    } else if (value <= 0xffff) {                 \
+      /* unit 16 */                               \
+      AMSGPACK_RESIZE(3);                         \
+      put3(data + size, '\xcd', (uint16_t)value); \
+      size += 3;                                  \
+    } else if (value <= 0xffffffff) {             \
+      /* unit 32 */                               \
+      AMSGPACK_RESIZE(5);                         \
+      put5(data + size, '\xce', (uint32_t)value); \
+      size += 5;                                  \
+    } else {                                      \
+      /* uint 64 */                               \
+      AMSGPACK_RESIZE(9);                         \
+      put9(data + size, '\xcf', (uint64_t)value); \
+      size += 9;                                  \
+    }                                             \
+  } else {                                        \
+    if (value >= -0x80) {                         \
+      /* int 8 */                                 \
+      AMSGPACK_RESIZE(2);                         \
+      put2(data + size, '\xd0', (char)value);     \
+      size += 2;                                  \
+    } else if (value >= -0x8000) {                \
+      /* int 16 */                                \
+      AMSGPACK_RESIZE(3);                         \
+      put3(data + size, '\xd1', (uint16_t)value); \
+      size += 3;                                  \
+    } else if (value >= -0x80000000LL) {          \
+      /* int 32 */                                \
+      AMSGPACK_RESIZE(5);                         \
+      put5(data + size, '\xd2', (uint32_t)value); \
+      size += 5;                                  \
+    } else {                                      \
+      /* int 64 */                                \
+      AMSGPACK_RESIZE(9);                         \
+      put9(data + size, '\xd3', (uint64_t)value); \
+      size += 9;                                  \
+    }                                             \
+  }
+
 static PyObject* packer_packb(Packer* self, PyObject* obj) {
   Py_ssize_t capacity = 1024;
   Py_ssize_t size = 0;
@@ -164,63 +216,12 @@ pack_next_with_obj_type_set:
     memcpy(data + size, u8string, u8size);
     size += u8size;
   } else if A_UNLIKELY(obj_type == &PyLong_Type) {
-    long long value;
-  obj_is_long:
     // https://docs.python.org/3/c-api/long.html
-    value = PyLong_AsLongLong(obj);
+    long long const value = PyLong_AsLongLong(obj);
     if A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
       goto error;
     }
-    if (value >= -0x20) {
-      if (value < 0x80) {
-        // fixint
-        AMSGPACK_RESIZE(1);
-        data[size] = (char)value;
-        size += 1;
-      } else if (value <= 0xff) {
-        // uint 8
-        AMSGPACK_RESIZE(2);
-        put2(data + size, '\xcc', (uint8_t)value);
-        size += 2;
-      } else if (value <= 0xffff) {
-        // unit 16
-        AMSGPACK_RESIZE(3);
-        put3(data + size, '\xcd', (uint16_t)value);
-        size += 3;
-      } else if (value <= 0xffffffff) {
-        // unit 32
-        AMSGPACK_RESIZE(5);
-        put5(data + size, '\xce', (uint32_t)value);
-        size += 5;
-      } else {
-        // uint 64
-        AMSGPACK_RESIZE(9);
-        put9(data + size, '\xcf', (uint64_t)value);
-        size += 9;
-      }
-    } else {
-      if (value >= -0x80) {
-        // int 8
-        AMSGPACK_RESIZE(2);
-        put2(data + size, '\xd0', (char)value);
-        size += 2;
-      } else if (value >= -0x8000) {
-        // int 16
-        AMSGPACK_RESIZE(3);
-        put3(data + size, '\xd1', (uint16_t)value);
-        size += 3;
-      } else if (value >= -0x80000000LL) {
-        // int 32
-        AMSGPACK_RESIZE(5);
-        put5(data + size, '\xd2', (uint32_t)value);
-        size += 5;
-      } else {
-        // int 64
-        AMSGPACK_RESIZE(9);
-        put9(data + size, '\xd3', (uint64_t)value);
-        size += 9;
-      }
-    }
+    PACK_LONG_LONG();
   } else if A_UNLIKELY(obj_type == &PyList_Type || obj_type == &PyTuple_Type) {
     // https://docs.python.org/3.11/c-api/list.html
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
@@ -254,10 +255,24 @@ pack_next_with_obj_type_set:
 #else
     PyObject** values = PySequence_Fast_ITEMS(obj);
 #endif
-    stack[stack_length++] = (PackbStack){.action = LIST_OR_TUPLE_NEXT,
-                                         .values = values,
-                                         .size = length,
-                                         .pos = 0};
+    stack[stack_length] = (PackbStack){.action = LIST_OR_TUPLE_NEXT,
+                                       .values = values,
+                                       .size = length,
+                                       .pos = 0};
+    PackbStack* item = &stack[stack_length];
+    stack_length += 1;
+    while (item->pos != length && Py_TYPE(values[item->pos]) == &PyFloat_Type) {
+      AMSGPACK_RESIZE(9);
+      put9_dbl(data + size, '\xcb', PyFloat_AS_DOUBLE(values[item->pos++]));
+      size += 9;
+    }
+    while (item->pos != length && Py_TYPE(values[item->pos]) == &PyLong_Type) {
+      long long const value = PyLong_AsLongLong(values[item->pos++]);
+      if A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
+        goto error;
+      }
+      PACK_LONG_LONG();
+    }
   } else if A_UNLIKELY(obj_type == &PyDict_Type) {
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
@@ -461,11 +476,7 @@ pack_next_with_obj_type_set:
           break;
         }
         obj = item->values[item->pos++];
-        obj_type = Py_TYPE(obj);
-        if A_LIKELY(obj_type == &PyLong_Type) {
-          goto obj_is_long;
-        }
-        goto pack_next_with_obj_type_set;
+        goto pack_next;
       case KEY_NEXT:
         if A_UNLIKELY(item->pos == item->size) {
           stack_length -= 1;
