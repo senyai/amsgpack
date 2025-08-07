@@ -88,6 +88,10 @@ class PackbTest(SequenceTestCase):
         self.assertEqual(packb(()), b"\x90")
         self.assertEqual(packb((1, 2, 3)), b"\x93\x01\x02\x03")
 
+    def test_can_pack_3_3_float_matrix(self):
+        ref = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
+        self.assertEqual(unpackb(packb(ref)), ref)
+
     def test_can_pack_nested_dict(self):
         self.assertEqual(packb({"a": {"b": "c"}}), b"\x81\xa1a\x81\xa1b\xa1c")
 
