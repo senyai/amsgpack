@@ -333,6 +333,21 @@ class UnpackbMapTest(SequenceTestCase):
 
         self.assertEqual(str(context.exception), "Deeply nested object")
 
+    def test_all_types_keys(self):
+        ref = {
+            False: -1,
+            True: -2,
+            3: -3,
+            "4": -4,
+            "Ы": -5,
+            "😬": -6,
+            b"5": -7,
+            7.01: -9,
+            datetime(1985, 2, 1, tzinfo=timezone.utc): -10,
+            None: -11,
+        }
+        self.assertEqual(unpackb(packb(ref)), ref)
+
 
 class UnpackbArrayTest(SequenceTestCase):
     def test_len_0(self):
