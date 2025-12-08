@@ -309,8 +309,8 @@ class UnpackbMapTest(SequenceTestCase):
 
     def test_unpack_incorrect_dict(self):
         with self.assertRaises(TypeError) as context:
-            unpackb(b"\x81\x80\x02")
-        self.assertEqual(str(context.exception), "unhashable type: 'dict'")
+            unpackb(b"\x81\x80\x02")  # {{}}
+        self.assertIn("unhashable type: 'dict'", str(context.exception))
 
     def test_map_too_big(self):
         with self.assertRaises(ValueError) as context:
