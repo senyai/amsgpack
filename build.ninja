@@ -1,0 +1,88 @@
+rule run
+  command = $cmd
+
+#
+# Format (in-place)
+#
+build format: run
+  cmd = clang-format --verbose -i src/*.h src/amsgpack.c && $
+    python3 -m black .;
+
+#
+# Test
+#
+
+rule test
+  depfile = $out.d
+  deps = gcc
+  command = $
+    gcc -O0 -fPIC -shared `python3-config --includes` $
+      $in $
+      -MD -MF $out.d $
+      `python3-config --ldflags` $
+      -o amsgpack/_amsgpack.cpython-310-x86_64-linux-gnu.so && $
+    python -m unittest
+  pool = console
+build test: test src/amsgpack.c
+
+#
+# Coverage
+#
+rule coverage
+  depfile = $out.d
+  deps = gcc
+  command = $
+    gcc --coverage -O0 -fPIC -shared `python3-config --includes` $
+      $in $
+      -MD -MF $out.d $
+      `python3-config --ldflags` $
+      --coverage $
+      -o amsgpack/_amsgpack.cpython-310-x86_64-linux-gnu.so && $
+    python -m unittest && $
+    mkdir -p coverage && $
+    gcovr --html-details -o $out && $
+    echo 'opening in a web browser "$out"' && $
+    python -m webbrowser "$out"
+  pool = console
+build coverage/coverage_report.html: coverage src/amsgpack.c
+build coverage: phony coverage/coverage_report.html
+
+#
+# Fuzzer
+#
+
+rule build_fuzzer
+  depfile = $out.d
+  deps = gcc
+  command = $
+    clang -DAMSGPACK_FUZZER=1 $
+        -g3 -O0 $
+        -fsanitize=fuzzer $
+        -fsanitize=address $
+        -fsanitize=undefined $
+        -fPIE $
+        $$(python3-config --includes) $
+        $in $$(python3-config --ldflags --embed) $
+         -MD -MF $out.d $
+        -o $out
+build amsgpack_fuzzer : build_fuzzer src/amsgpack.c
+
+build fuzzer: run | amsgpack_fuzzer
+  cmd = $
+    mkdir -p corpus && $
+    ASAN_OPTIONS=symbolize=1:print_stacktrace=1,detect_leaks=1,log_path=amsgpack_leak.log $
+    ./amsgpack_fuzzer corpus
+  pool = console
+
+#
+# misc
+#
+build show_help: run
+  cmd = echo -e $
+    '\n'$
+    'This script is for developers only.\n'$
+    'To install the package, use `python -m pip install -e . --no-build-isolation`\n'$
+    '\nUse `ninja -t targets` to see all the targets'
+
+# Make all targets available
+default show_help
