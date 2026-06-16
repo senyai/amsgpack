@@ -7,6 +7,7 @@ from ._amsgpack import (
     FileUnpacker,
     packb,
     unpackb,
+    __version__,
 )
 
 __all__ = [
