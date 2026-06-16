@@ -27,6 +27,8 @@ classifiers = [
 line-length = 79
 [tool.setuptools.packages.find]
 include = ["amsgpack*"]
+[tool.setuptools.package-data]
+amsgpack = ["amsgpack/*.pyi", "amsgpack/py.typed"]
 [tool.pyright]
 typeCheckingMode = "strict"
 exclude = ["*/node_modules", "**/__pycache__", "**/.*", "benchmark/*"]

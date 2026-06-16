@@ -206,14 +206,14 @@ PyDoc_STRVAR(amsgpack_doc,
              "   {'compact': True, 'schema': 0}\n");
 
 static struct PyModuleDef amsgpack_module = {.m_base = PyModuleDef_HEAD_INIT,
-                                             .m_name = "amsgpack",
+                                             .m_name = "_amsgpack",
                                              .m_doc = amsgpack_doc,
                                              .m_size = sizeof(AMsgPackState),
                                              .m_slots = amsgpack_slots,
                                              .m_traverse = amsgpack_traverse,
                                              .m_free = amsgpack_free};
 
-PyMODINIT_FUNC PyInit_amsgpack(void) {
+PyMODINIT_FUNC PyInit__amsgpack(void) {
   return PyModuleDef_Init(&amsgpack_module);
 }
 
@@ -221,6 +221,9 @@ PyMODINIT_FUNC PyInit_amsgpack(void) {
 static PyObject* import_amsgpack(void) {
   Py_InitializeEx(0);
   PyObject* module = PyImport_ImportModule("amsgpack");
+  if (PyErr_Occurred()) {
+    PyErr_Print();
+  }
   assert(module != NULL);
   int const exec_def_ret = PyModule_ExecDef(module, &amsgpack_module);
   assert(exec_def_ret == 0);
