@@ -27,9 +27,12 @@ if sys.platform != "win32":
         extra_compile_args.append("-Wpedantic")
 
 module = Extension(
-    "amsgpack",
+    "amsgpack._amsgpack",
     sources=["src/amsgpack.c"],
     extra_compile_args=extra_compile_args,
 )
 
-setup(version=version, ext_modules=[module])
+setup(
+    version=version,
+    ext_modules=[module],
+)
