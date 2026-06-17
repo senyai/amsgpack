@@ -4,8 +4,20 @@ from io import BytesIO
 
 
 class BadFileStr:
-    def read(self):
+    def read(self, size: int = -1):
+        assert size == -1
         return "string"
+
+
+class BadFileReadMethod:
+    def read(self):
+        assert False, "programmer error"
+
+
+class BadFileReadRaises:
+    def read(self, size: int = -1):
+        assert size == -1
+        raise ValueError("Test Raise is handled")
 
 
 class BadFileNotCallable:
@@ -49,6 +61,20 @@ class FileUnpackerTest(TestCase):
             str(context.exception),
             "a bytes object is required, not 'str'",
         )
+
+    def test_read_bad_args(self):
+        unpacker = amsgpack.FileUnpacker(
+            BadFileReadMethod()  # pyright: ignore [reportArgumentType]
+        )
+        with self.assertRaises(TypeError) as context:
+            next(unpacker)
+        self.assertIn("takes 1 positional argument", str(context.exception))
+
+    def test_read_raises(self):
+        unpacker = amsgpack.FileUnpacker(BadFileReadRaises())
+        with self.assertRaises(ValueError) as context:
+            next(unpacker)
+        self.assertEqual(str(context.exception), "Test Raise is handled")
 
     def test_read_not_callable(self):
         with self.assertRaises(TypeError) as context:
