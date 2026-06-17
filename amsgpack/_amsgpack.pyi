@@ -50,11 +50,7 @@ Immutable: TypeAlias = (
     str | int | float | bool | bytes | Ext | Raw | datetime | Timestamp | None
 )
 Value: TypeAlias = (
-    Mapping[str, Value]
-    | Mapping[Immutable, Value]
-    | Sequence[Value]
-    | Immutable
-    | bytearray
+    Mapping[Immutable, Value] | Sequence[Value] | Immutable | bytearray
 )
 
 TP = TypeVar("TP", default=Value)
