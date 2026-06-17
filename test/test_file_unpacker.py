@@ -118,3 +118,22 @@ class FileUnpackerTest(TestCase):
         self.assertEqual(
             str(context.exception), "amsgpack: 0xc1 byte must not be used"
         )
+
+    def test_multiple_reads(self):
+        class SingleByteReader:
+            def __init__(self, data: bytes) -> None:
+                self._data = data
+                self._idx = 0
+
+            def read(self, size: int | None = -1, /) -> bytes:
+                assert size == 1, size
+                try:
+                    result = self._data[self._idx : self._idx + 1]
+                except IndexError:
+                    return b""
+                self._idx += 1
+                return result
+
+        data = SingleByteReader(amsgpack.packb([1, 2]))
+        unpacker = amsgpack.FileUnpacker(data, 1)
+        self.assertEqual(next(unpacker), [1, 2])
