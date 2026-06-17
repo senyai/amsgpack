@@ -52,27 +52,33 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
     }
   }
 
-  // 2. Read some bytes
-  PyObject* bytes = self->read_size ? PyObject_CallOneArg(self->read_callback,
-                                                          self->read_size)
-                                    : PyObject_CallNoArgs(self->read_callback);
-  if A_UNLIKELY(bytes == NULL) {
-    return NULL;
-  }
-  if A_UNLIKELY(PyBytes_CheckExact(bytes) == 0) {
-    PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
-                 Py_TYPE(bytes)->tp_name);
-    return NULL;
-  }
-  // 3. Push bytes to the deque
-  int const append_result = deque_append(&self->unpacker.deque, bytes);
-  Py_DECREF(bytes);
-  if A_UNLIKELY(append_result != 0) {
-    return NULL;
-  }
+  PyObject* result = NULL;
+  do {
+    // 2. Read some bytes
+    PyObject* bytes =
+        self->read_size
+            ? PyObject_CallOneArg(self->read_callback, self->read_size)
+            : PyObject_CallNoArgs(self->read_callback);
+    if A_UNLIKELY(bytes == NULL) {
+      return NULL;
+    }
+    if A_UNLIKELY(PyBytes_CheckExact(bytes) == 0) {
+      PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
+                   Py_TYPE(bytes)->tp_name);
+      return NULL;
+    }
+    // 3. Push bytes to the deque
+    int const append_result = deque_append(&self->unpacker.deque, bytes);
+    Py_DECREF(bytes);
+    if A_UNLIKELY(append_result != 0) {
+      return NULL;
+    }
 
-  // 4. Try to iterate
-  return Unpacker_iternext(&self->unpacker);
+    // 4. Try to iterate
+    result = Unpacker_iternext(&self->unpacker);
+  } while (result == NULL);
+
+  return result;
 }
 
 static void FileUnpacker_dealloc(FileUnpacker* self) {
