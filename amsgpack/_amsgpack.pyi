@@ -83,14 +83,15 @@ class Unpacker(Generic[TU]):
     def __next__(self) -> Value | TU: ...
 
 class BinaryStream(Protocol):
-    def read(self, size: int | None = -1, /) -> bytes: ...
+    def read(self, size: int = -1, /) -> bytes: ...
 
 @final
 class FileUnpacker(Generic[TU]):
     def __init__(
         self,
         file: BinaryStream,
-        size: int | None = -1,
+        size: int = -1,
+        /,
         *,
         tuple: bool = False,
         ext_hook: Callable[[Ext], TU] | None = None,

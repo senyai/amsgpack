@@ -35,7 +35,15 @@ static int FileUnpacker_init(FileUnpacker* self, PyObject* args,
   }
   Py_DECREF(no_args);
   self->read_callback = read_callback;
-  Py_XINCREF(read_size);
+  if (read_size == NULL) {
+    // handle default value
+    read_size = PyLong_FromLong(-1);
+    if (read_size == NULL) {
+      return -1;
+    }
+  } else {
+    Py_INCREF(read_size);
+  }
   self->read_size = read_size;
   return 0;
 }
@@ -55,10 +63,7 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
   PyObject* result = NULL;
   do {
     // 2. Read some bytes
-    PyObject* bytes =
-        self->read_size
-            ? PyObject_CallOneArg(self->read_callback, self->read_size)
-            : PyObject_CallNoArgs(self->read_callback);
+    PyObject* bytes = PyObject_CallOneArg(self->read_callback, self->read_size);
     if A_UNLIKELY(bytes == NULL) {
       return NULL;
     }
