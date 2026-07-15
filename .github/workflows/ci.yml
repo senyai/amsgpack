@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
-      - run: pip install -ve .
+      - run: pip install "pyright<1.2" && pip install -ve .
         env:
           CC: ${{ matrix.compiler }}
       - run: python -m unittest -v
@@ -49,7 +49,7 @@ jobs:
         with:
           python-version: "3.10"
           cache: "pip"
-      - run: pip install -ve .
+      - run: pip install "pyright<1.2" && pip install -ve .
       - run: python -m unittest -v
       - name: wheel
         run: |
