@@ -4,14 +4,14 @@ from .test_amsgpack import SequenceTestCase
 
 
 class ExtTest(TestCase):
-    def test_unicode_exception(self):
+    def test_unicode_exception(self) -> None:
         with self.assertRaises(TypeError) as context:
             Ext(127, "123")  # pyright: ignore [reportArgumentType]
         self.assertEqual(
             str(context.exception), "Ext() argument 2 must be bytes, not str"
         )
 
-    def test_arguments_exception(self):
+    def test_arguments_exception(self) -> None:
         with self.assertRaises(TypeError) as context:
             Ext(code=127)  # pyright: ignore [reportCallIssue]
         self.assertEqual(
@@ -19,53 +19,53 @@ class ExtTest(TestCase):
             "Ext() missing required argument 'data' (pos 2)",
         )
 
-    def test_args_init(self):
+    def test_args_init(self) -> None:
         self.assertEqual(repr(Ext(127, b"123")), "Ext(code=127, data=b'123')")
 
-    def test_kwargs_init(self):
+    def test_kwargs_init(self) -> None:
         self.assertEqual(
             repr(Ext(code=127, data=b"123")), "Ext(code=127, data=b'123')"
         )
 
-    def test_code_128_is_impossible(self):
+    def test_code_128_is_impossible(self) -> None:
         with self.assertRaises(ValueError) as context:
             Ext(code=128, data=b"1")
         self.assertEqual(
             str(context.exception), "`code` must be between -128 and 127"
         )
 
-    def test_hash_equal_when_code_and_data_equal(self):
+    def test_hash_equal_when_code_and_data_equal(self) -> None:
         a = Ext(code=42, data=b"456")
         b = Ext(code=42, data=b"456")
         self.assertEqual(a, b)
         self.assertEqual(hash(a), hash(b))
 
-    def test_hash_differ_when_code_is_different(self):
+    def test_hash_differ_when_code_is_different(self) -> None:
         a = Ext(code=127, data=b"123")
         b = Ext(code=126, data=b"123")
         self.assertNotEqual(a, b)
         self.assertNotEqual(hash(a), hash(b))
         self.assertFalse(a == b)
 
-    def test_data_not_equal(self):
+    def test_data_not_equal(self) -> None:
         a = Ext(code=42, data=b"456")
         b = Ext(code=42, data=b"457")
         self.assertNotEqual(a, b)
         self.assertNotEqual(hash(a), hash(b))
 
-    def test_can_access_attributes(self):
+    def test_can_access_attributes(self) -> None:
         a = Ext(code=127, data=b"123")
         self.assertEqual(a.code, 127)
         self.assertEqual(a.data, b"123")
 
-    def test_attributes_are_readonly(self):
+    def test_attributes_are_readonly(self) -> None:
         a = Ext(code=127, data=b"123")
         with self.assertRaises(AttributeError):
             a.code = 3  # pyright: ignore [reportAttributeAccessIssue]
         with self.assertRaises(AttributeError):
             a.data = b"x"  # pyright: ignore [reportAttributeAccessIssue]
 
-    def test_compare_less_exception(self):
+    def test_compare_less_exception(self) -> None:
         a = Ext(code=127, data=b"123")
         b = Ext(code=126, data=b"123")
         with self.assertRaises(TypeError) as context:
@@ -78,7 +78,7 @@ class ExtTest(TestCase):
             ),
         )
 
-    def test_compare_types_exception(self):
+    def test_compare_types_exception(self) -> None:
         a = Ext(code=127, data=b"123")
         with self.assertRaises(TypeError) as context:
             a != b"b"  # pyright: ignore [reportUnusedExpression]
@@ -94,50 +94,50 @@ class ExtTest(TestCase):
             "other argument must be amsgpack.Ext instance",
         )
 
-    def test_ext_hook_invalid(self):
+    def test_ext_hook_invalid(self) -> None:
         with self.assertRaises(TypeError) as context:
             Unpacker(ext_hook=0)  # pyright: ignore [reportArgumentType]
         self.assertEqual(str(context.exception), "`ext_hook` must be callable")
 
-    def test_can_be_in_set(self):
+    def test_can_be_in_set(self) -> None:
         self.assertEqual(len({Ext(0, b"1"), Ext(0, b"1")}), 1)
         self.assertEqual(len({Ext(0, b"1"), Ext(0, b"2")}), 2)
 
 
 class PackExtTest(TestCase):
-    def test_ext_size_1(self):
+    def test_ext_size_1(self) -> None:
         value = Ext(0x43, b"1")
         self.assertEqual(packb(value), b"\xd4C1")
 
-    def test_ext_size_2(self):
+    def test_ext_size_2(self) -> None:
         value = Ext(0x43, b"11")
         self.assertEqual(packb(value), b"\xd5C11")
 
-    def test_ext_size_3(self):
+    def test_ext_size_3(self) -> None:
         value = Ext(0x42, b"123")
         self.assertEqual(packb(value), b"\xc7\x03B123")
 
-    def test_ext_size_4(self):
+    def test_ext_size_4(self) -> None:
         value = Ext(0x43, b"1111")
         self.assertEqual(packb(value), b"\xd6C1111")
 
-    def test_ext_size_8(self):
+    def test_ext_size_8(self) -> None:
         value = Ext(0x43, b"1" * 8)
         self.assertEqual(packb(value), b"\xd7C11111111")
 
-    def test_ext_size_16(self):
+    def test_ext_size_16(self) -> None:
         value = Ext(0x43, b"1" * 16)
         self.assertEqual(packb(value), b"\xd8C1111111111111111")
 
-    def test_ext_size_1000(self):
+    def test_ext_size_1000(self) -> None:
         value = Ext(0x43, b"1" * 1000)
         self.assertEqual(packb(value), b"\xc8\x03\xe8C" + b"1" * 1000)
 
-    def test_ext_size_67000(self):
+    def test_ext_size_67000(self) -> None:
         value = Ext(0x43, b"1" * 67000)
         self.assertEqual(packb(value), b"\xc9\x00\x01\x05\xb8C" + b"1" * 67000)
 
-    def test_is_timestamp(self):
+    def test_is_timestamp(self) -> None:
         self.assertTrue(
             Ext(code=-1, data=b"\x0f\x00\x00\x00" * 1).is_timestamp()
         )
@@ -154,13 +154,13 @@ class PackExtTest(TestCase):
             Ext(code=1, data=b"\x0f\x00\x00\x00" * 1).is_timestamp()
         )
 
-    def test_to_timestamp(self):
+    def test_to_timestamp(self) -> None:
         self.assertEqual(
             Ext(code=-1, data=b"\x0f\x00\x00\x00").to_timestamp(),
             Timestamp(seconds=251658240, nanoseconds=0),
         )
 
-    def test_to_timestamp_exception(self):
+    def test_to_timestamp_exception(self) -> None:
         with self.assertRaises(ValueError) as context:
             Ext(code=1, data=b"\x0f\x00\x00").to_timestamp()
         self.assertEqual(
@@ -169,7 +169,7 @@ class PackExtTest(TestCase):
             "4, 8 and 12 (see MessagePack specification)",
         )
 
-    def test_to_datetime_exception(self):
+    def test_to_datetime_exception(self) -> None:
         with self.assertRaises(ValueError) as context:
             Ext(code=1, data=b"\x0f\x00\x00").to_datetime()
         self.assertEqual(
@@ -180,7 +180,7 @@ class PackExtTest(TestCase):
 
 
 class UnpackExtTest(SequenceTestCase):
-    def test_huge_data(self):
+    def test_huge_data(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"\xc9\x0f\xff\xff\xff\x00")
         self.assertEqual(
@@ -188,7 +188,7 @@ class UnpackExtTest(SequenceTestCase):
             "ext size 268435455 is too big (>134217728)",
         )
 
-    def test_ext_hook(self):
+    def test_ext_hook(self) -> None:
         from array import array
 
         def ext_hook(ext: Ext):
@@ -201,7 +201,7 @@ class UnpackExtTest(SequenceTestCase):
         )
         self.assertEqual(value, array("I", [0, 1]))
 
-    def test_ext_hook_exc(self):
+    def test_ext_hook_exc(self) -> None:
         def ext_hook(ext: Ext):
             raise ValueError(ext)
 
