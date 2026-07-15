@@ -42,7 +42,7 @@ static inline uint32_t xxhash32(uint8_t const* data, uint32_t len,
 static inline PyObject* as_string(AMsgPackState* state, char const* str,
                                   Py_ssize_t length) {
   if A_LIKELY(length <= MAX_CACHE_LEN) {
-    // let's not  use the seed, as there's no actual denial of service
+    // let's not use the seed, as there's no actual denial of service
     uint32_t const hash =
         xxhash32((uint8_t const*)str, length, 0 /*_Py_HashSecret.siphash.k0*/);
     CacheEntry* cache_entry =
