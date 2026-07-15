@@ -1,14 +1,5 @@
-from typing import (
-    TypeAlias,
-    Final,
-    Protocol,
-    Callable,
-    final,
-    TypeVar,
-    Generic,
-    Sequence,
-    Mapping,
-)
+from typing import TypeAlias, Final, Protocol, final, TypeVar, Generic
+from collections.abc import Callable, Sequence, Mapping
 from datetime import datetime
 
 __version__: str
