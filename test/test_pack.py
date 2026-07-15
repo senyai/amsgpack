@@ -57,13 +57,13 @@ class PackbTest(SequenceTestCase):
         self.assertEqual(packb({}), b"\x80")
         self.assertEqual(unpackb(b"\x80"), {})
 
-    def test_dict_0_to_20_el(self):
+    def test_dict_0_to_20_el(self) -> None:
         value: dict[str, int] = {}
         for n in range(21):
             self.assertEqual(unpackb(packb(value)), value)
             value[str(n)] = n
 
-    def test_dict_0x10000(self):
+    def test_dict_0x10000(self) -> None:
         value: dict[str, None] = dict.fromkeys(
             [str(i) for i in range(0x10000)]
         )

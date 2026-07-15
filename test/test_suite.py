@@ -67,20 +67,20 @@ AllSuits = (
 
 
 class SuiteTest(TestCase):
-    def subtest(self, ref: Any, test_case: list[bytes]):
+    def subtest(self, ref: Any, test_case: list[bytes]) -> None:
         for case_bytes in test_case:
             with self.subTest(case_bytes=case_bytes):
                 exp = unpackb(case_bytes)
                 self.assertEqual(ref, exp)
 
-    def subtest_exception(self, ref: Any, test_case: list[bytes]):
+    def subtest_exception(self, ref: Any, test_case: list[bytes]) -> None:
         for case_bytes in test_case:
             with self.subTest(case_bytes=case_bytes):
                 with self.assertRaises(ref):
                     unpackb(case_bytes)
 
     @classmethod
-    def add_test(cls, name: str, ref: Any, test_case: list[bytes]):
+    def add_test(cls, name: str, ref: Any, test_case: list[bytes]) -> None:
         if isinstance(ref, type):
             assert issubclass(ref, Exception), ref
 
@@ -156,7 +156,7 @@ def _get_ref_value(data: AllSuits):
             raise ValueError(data)
 
 
-def main():
+def main() -> None:
     import json
 
     tests = cast(

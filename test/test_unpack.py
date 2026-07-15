@@ -1,4 +1,4 @@
-from amsgpack import packb, Unpacker, Ext, unpackb
+from amsgpack import packb, Unpacker, Ext, unpackb, Raw, Timestamp
 from typing import TypeAlias, cast
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 from .test_amsgpack import SequenceTestCase
@@ -9,9 +9,9 @@ RecursiveDict: TypeAlias = "dict[int, RecursiveDict | None]"
 
 
 class UnpackerTest(SequenceTestCase):
-    def test_unpacker_gets_no_argumens(self):
+    def test_unpacker_gets_no_argumens(self) -> None:
         with self.assertRaises(TypeError) as context:
-            Unpacker("what", "is", "that")  # pyright: ignore [reportCallIssue]
+            Unpacker("what", "is", "that")  # pyright: ignore[reportCallIssue]
         self.assertEqual(
             str(context.exception),
             "Unpacker() takes at most 2 arguments (3 given)",
@@ -26,10 +26,10 @@ class UnpackerTest(SequenceTestCase):
             ),
         )
 
-    def test_feed_nothing(self):
+    def test_feed_nothing(self) -> None:
         self.safeSequenceEqual(Unpacker(), ())
 
-    def test_feed_non_bytes(self):
+    def test_feed_non_bytes(self) -> None:
         u = Unpacker()
         with self.assertRaises(TypeError) as context:
             u.feed("")  # pyright: ignore [reportArgumentType]
@@ -37,34 +37,34 @@ class UnpackerTest(SequenceTestCase):
             str(context.exception), "a bytes object is required, not 'str'"
         )
 
-    def test_unpack_none(self):
+    def test_unpack_none(self) -> None:
         u = Unpacker()
         u.feed(b"\xc0")
         self.safeSequenceEqual(u, (None,))
 
-    def test_unpack_bool(self):
+    def test_unpack_bool(self) -> None:
         u = Unpacker()
         u.feed(b"\xc2\xc3")
         self.safeSequenceEqual(u, (False, True))
 
-    def test_double(self):
+    def test_double(self) -> None:
         u = Unpacker()
         u.feed(b"\xcb@\t!\xfbTD-\x11")
         self.safeSequenceEqual(u, (3.14159265358979,))
 
-    def test_feed_2_bytes(self):
+    def test_feed_2_bytes(self) -> None:
         u = Unpacker()
         u.feed(b"\xc2")
         u.feed(b"\xc3")
         self.safeSequenceEqual(u, (False, True))
 
-    def test_feed_double_byte_by_byte(self):
+    def test_feed_double_byte_by_byte(self) -> None:
         u = Unpacker()
         for byte in b"\xcb@\t!\xfbTD-\x11":
             u.feed(bytes((byte,)))
         self.safeSequenceEqual(u, (3.14159265358979,))
 
-    def test_feed_double_byte_by_byte_and_iterate(self):
+    def test_feed_double_byte_by_byte_and_iterate(self) -> None:
         u = Unpacker()
         for byte in b"\xcb@\t!\xfbTD-\x11":
             u.feed(bytes((byte,)))
@@ -73,36 +73,36 @@ class UnpackerTest(SequenceTestCase):
                     next(u)
         self.safeSequenceEqual(u, (3.14159265358979,))
 
-    def test_feed_double_2_bytes_sequence(self):
+    def test_feed_double_2_bytes_sequence(self) -> None:
         u = Unpacker()
         pi_bytes = b"\xcb@\t!\xfbTD-\x11"
         for idx in range(0, len(pi_bytes), 2):
             u.feed(bytes((*pi_bytes[idx : idx + 2],)))
         self.safeSequenceEqual(u, (3.14159265358979,))
 
-    def test_list_inside_list(self):
+    def test_list_inside_list(self) -> None:
         u = Unpacker()
         u.feed(b"\x92\x90\x90")
         self.safeSequenceEqual(u, ([[], []],))
 
-    def test_list_inside_list_as_tuple(self):
+    def test_list_inside_list_as_tuple(self) -> None:
         u = Unpacker(tuple=True)
         u.feed(b"\x92\x90\x90")
         self.safeSequenceEqual(u, (((), ()),))
 
-    def test_main_page_example(self):
+    def test_main_page_example(self) -> None:
         u = Unpacker()
         u.feed(b"\x82\xa7compact\xc3\xa6schema\x00")
         self.safeSequenceEqual(u, ({"compact": True, "schema": 0},))
 
-    def test_fixstr(self):
+    def test_fixstr(self) -> None:
         u = Unpacker()
         for i in range(32):
             u.feed(bytes([0xA0 + i] + [0x41] * i))
         ref = tuple(["A" * i for i in range(32)])
         self.safeSequenceEqual(u, ref)
 
-    def test_never_used(self):
+    def test_never_used(self) -> None:
         u = Unpacker()
         u.feed(b"\xc1")
         with self.assertRaises(ValueError) as context:
@@ -111,21 +111,21 @@ class UnpackerTest(SequenceTestCase):
             str(context.exception), "amsgpack: 0xc1 byte must not be used"
         )
 
-    def test_bin8(self):
+    def test_bin8(self) -> None:
         u = Unpacker()
         for i in range(2):
             u.feed(bytes([0xC4, i] + [0x41] * i))
         ref = tuple([b"A" * i for i in range(2)])
         self.safeSequenceEqual(u, ref)
 
-    def test_bin8_splitted(self):
+    def test_bin8_splitted(self) -> None:
         u = Unpacker()
         for char in b"\xc4\x02\x03\x04":
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (b"\x03\x04",))
 
     @skipUnless(FAILING_AVAILABLE, "not failing available")
-    def test_bin_malloc_failure(self):
+    def test_bin_malloc_failure(self) -> None:
         u = Unpacker()
         for char in b"\xc4\xffaaaaa":
             u.feed(bytes((char,)))
@@ -133,21 +133,21 @@ class UnpackerTest(SequenceTestCase):
         with self.assertRaises(MemoryError), failing_malloc(20, "mem"):
             self.safeSequenceEqual(u, (b"aaaaa" + b"b" * 250,))
 
-    def test_bin16(self):
+    def test_bin16(self) -> None:
         u = Unpacker()
         for i in range(256, 258):
             u.feed(bytes([0xC5, 1, i - 256] + [0x41] * i))
         ref = tuple([b"A" * i for i in range(256, 258)])
         self.safeSequenceEqual(u, ref)
 
-    def test_bin32(self):
+    def test_bin32(self) -> None:
         u = Unpacker()
         for i in range(65536, 65538):
             u.feed(bytes([0xC6, 0, 1, 0, i - 65536] + [0x41] * i))
         ref = tuple([b"A" * i for i in range(65536, 65538)])
         self.safeSequenceEqual(u, ref)
 
-    def test_ext_4(self):
+    def test_ext_4(self) -> None:
         ext = Ext(1, b"1234")
         ref_bytes = packb(ext)
         self.assertEqual(ref_bytes, b"\xd6\x011234")
@@ -156,58 +156,58 @@ class UnpackerTest(SequenceTestCase):
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (ext,))
 
-    def test_str8_split_in_1_byte(self):
+    def test_str8_split_in_1_byte(self) -> None:
         u = Unpacker()
         for char in b"\xd9\x01A":
             u.feed(bytes((char,)))
         self.assertEqual(list(u), ["A"])
 
-    def test_bin8_split_in_1_byte(self):
+    def test_bin8_split_in_1_byte(self) -> None:
         u = Unpacker()
         for char in b"\xc4\x01A":
             u.feed(bytes((char,)))
         self.assertEqual(list(u), [b"A"])
 
-    def test_ext8_split_in_1_byte(self):
+    def test_ext8_split_in_1_byte(self) -> None:
         u = Unpacker()
         for char in b"\xc7\x01\x02A":
             u.feed(bytes((char,)))
         self.assertEqual(list(u), [Ext(code=2, data=b"A")])
 
-    def test_str8_zero_size_in_the_middle(self):
+    def test_str8_zero_size_in_the_middle(self) -> None:
         u = Unpacker()
         for seq in (b"|\xd9", b"\x00\x00"):
             u.feed(seq)
         self.assertEqual(list(u), [124, "", 0])
 
     @skipUnless(FAILING_AVAILABLE, "not failing available")
-    def test_bin_PyBytes_FromStringAndSize_malloc(self):
+    def test_bin_PyBytes_FromStringAndSize_malloc(self) -> None:
         u = Unpacker()
         u.feed(b"\xc6\x00\x01\x00\x00" + b"A" * 0x10000)
         with self.assertRaises(MemoryError), failing_malloc(0x10000, "raw"):
             next(u)
 
-    def test_bin_header_only(self):
+    def test_bin_header_only(self) -> None:
         u = Unpacker()
         u.feed(b"\xc6")
         with self.assertRaises(StopIteration):
             next(u)
 
     @skipUnless(FAILING_AVAILABLE, "not failing available")
-    def test_feed_no_memory(self):
+    def test_feed_no_memory(self) -> None:
         u = Unpacker()
         with self.assertRaises(MemoryError), failing_malloc(9, "mem"):
             u.feed(b"\xc6")
 
 
 class UnpackbTest(SequenceTestCase):
-    def test_memoryview(self):
+    def test_memoryview(self) -> None:
         one = unpackb(memoryview(b"\x01"))
         self.assertEqual(one, 1)
 
-    def test_invalid_args(self):
+    def test_invalid_args(self) -> None:
         with self.assertRaises(TypeError) as context:
-            unpackb(b"\xcc", 1)  # pyright: ignore [reportCallIssue]
+            unpackb(b"\xcc", 1)  # pyright: ignore[reportCallIssue]
         self.assertIn(
             str(context.exception),
             (
@@ -216,20 +216,20 @@ class UnpackbTest(SequenceTestCase):
             ),
         )
 
-    def test_invalid_type(self):
+    def test_invalid_type(self) -> None:
         with self.assertRaises(TypeError) as context:
-            unpackb("\xcc")  # pyright: ignore [reportArgumentType]
+            unpackb("\xcc")  # pyright: ignore[reportArgumentType]
         self.assertEqual(
             str(context.exception),
             "unpackb() argument 1 must be bytes, not str",
         )
 
-    def test_extra_data(self):
+    def test_extra_data(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"\x01\x02")
         self.assertEqual(str(context.exception), "Extra data")
 
-    def test_incomplete_data(self):
+    def test_incomplete_data(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"\xcc")
         self.assertEqual(
@@ -238,18 +238,18 @@ class UnpackbTest(SequenceTestCase):
 
 
 class UnpackbIntTest(SequenceTestCase):
-    def test_uint_8_only_ont_byte_is_available(self):
+    def test_uint_8_only_ont_byte_is_available(self) -> None:
         u = Unpacker()
         u.feed(b"\xcc")
         self.safeSequenceEqual(u, ())
 
-    def test_uint_16(self):
+    def test_uint_16(self) -> None:
         u = Unpacker()
         for char in b"\xcd\x00\x00\xcd\x00\xff\xcd\x01\x00\xcd\xff\xff":
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF))
 
-    def test_uint_16_partly(self):
+    def test_uint_16_partly(self) -> None:
         u = Unpacker()
         u.feed(b"\xcd")
         self.safeSequenceEqual(u, ())
@@ -258,7 +258,7 @@ class UnpackbIntTest(SequenceTestCase):
         u.feed(b"\x01")
         self.safeSequenceEqual(u, (1,))
 
-    def test_uint_32(self):
+    def test_uint_32(self) -> None:
         u = Unpacker()
         for (
             char
@@ -266,36 +266,36 @@ class UnpackbIntTest(SequenceTestCase):
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (0, 255, 256, 0xFFFF, 0xFFFFFFFF))
 
-    def test_uint_32_not_ready(self):
+    def test_uint_32_not_ready(self) -> None:
         u = Unpacker()
         u.feed(b"\xce")
         self.safeSequenceEqual(u, ())
 
-    def test_uint_64_sliced(self):
+    def test_uint_64_sliced(self) -> None:
         u = Unpacker()
         for char in b"\xcf\x01\x02\x03\x04\x05\x06\x07\x08":
             u.feed(bytes((char,)))
         self.safeSequenceEqual(u, (0x0102030405060708,))
 
-    def test_uint_64_not_ready(self):
+    def test_uint_64_not_ready(self) -> None:
         u = Unpacker()
         u.feed(b"\xcf\x01\x02\x03\x04\x05\x06\x07")
         self.safeSequenceEqual(u, ())
 
 
 class UnpackbFloatTest(SequenceTestCase):
-    def test_float32(self):
+    def test_float32(self) -> None:
         u = Unpacker()
         u.feed(b"\xca\x44\xf8\x20\x54")
         self.safeSequenceEqual(u, (1985.01025390625,))
 
-    def test_float32_sliced(self):
+    def test_float32_sliced(self) -> None:
         u = Unpacker()
         u.feed(b"\xca\x44")
         u.feed(b"\xf8\x20\x54")
         self.safeSequenceEqual(u, (1985.01025390625,))
 
-    def test_float32_not_ready(self):
+    def test_float32_not_ready(self) -> None:
         u = Unpacker()
         u.feed(b"\xca\x44")
         u.feed(b"\xf8\x20")
@@ -303,23 +303,23 @@ class UnpackbFloatTest(SequenceTestCase):
 
 
 class UnpackbMapTest(SequenceTestCase):
-    def test_dict_with_array_value(self):
+    def test_dict_with_array_value(self) -> None:
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x01"), {"b": [1]})
         self.assertEqual(unpackb(b"\x81\xa1b\x91\x90"), {"b": [[]]})
 
-    def test_unpack_incorrect_dict(self):
+    def test_unpack_incorrect_dict(self) -> None:
         with self.assertRaises(TypeError) as context:
             unpackb(b"\x81\x80\x02")  # {{}}
         self.assertIn("unhashable type: 'dict'", str(context.exception))
 
-    def test_map_too_big(self):
+    def test_map_too_big(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"\xdf\xff\xff\xff\xff")
         self.assertEqual(
             str(context.exception), "dict size 4294967295 is too big (>100000)"
         )
 
-    def test_deeply_nested_okay(self):
+    def test_deeply_nested_okay(self) -> None:
         res = cast(
             RecursiveDict,
             unpackb(b"".join(b"\x81\x00" for _ in range(32)) + b"\xc0"),
@@ -327,14 +327,26 @@ class UnpackbMapTest(SequenceTestCase):
         ref: RecursiveDict = eval("{0:" * 32 + "None" + "}" * 32)
         self.assertDictEqual(res, ref)
 
-    def test_deeply_nested_exception(self):
+    def test_deeply_nested_exception(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"".join(b"\x81\x00" for _ in range(33)) + b"\xc0")
 
         self.assertEqual(str(context.exception), "Deeply nested object")
 
-    def test_all_types_keys(self):
-        ref = {
+    def test_all_types_keys(self) -> None:
+        ref: dict[
+            str
+            | int
+            | float
+            | bool
+            | bytes
+            | Ext
+            | Raw
+            | datetime
+            | Timestamp
+            | None,
+            int,
+        ] = {
             False: -1,
             True: -2,
             3: -3,
@@ -350,25 +362,25 @@ class UnpackbMapTest(SequenceTestCase):
 
 
 class UnpackbArrayTest(SequenceTestCase):
-    def test_len_0(self):
+    def test_len_0(self) -> None:
         u = Unpacker()
         for l0_bin in (b"\x90", b"\xdc\x00\x00", b"\xdd\x00\x00\x00\x00"):
             u.feed(l0_bin)
             self.safeSequenceEqual(u, ([],))
 
-    def test_len_1(self):
+    def test_len_1(self) -> None:
         u = Unpacker()
         for l1_bin in (b"\x91", b"\xdc\x00\x01", b"\xdd\x00\x00\x00\x01"):
             u.feed(l1_bin + b"\xc0")
             self.safeSequenceEqual(u, ([None],))
 
-    def test_len_2(self):
+    def test_len_2(self) -> None:
         u = Unpacker()
         for l2_bin in (b"\x92", b"\xdc\x00\x02", b"\xdd\x00\x00\x00\x02"):
             u.feed(l2_bin + b"\xc0\xc0")
             self.safeSequenceEqual(u, ([None, None],))
 
-    def test_array_too_big(self):
+    def test_array_too_big(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"\xdd\xff\xff\xff\xff")
         self.assertEqual(
@@ -376,12 +388,12 @@ class UnpackbArrayTest(SequenceTestCase):
             "list size 4294967295 is too big (>10000000)",
         )
 
-    def test_deeply_nested_okay(self):
+    def test_deeply_nested_okay(self) -> None:
         res = unpackb(b"".join(b"\x91" for _ in range(32)) + b"\xc0")
         ref = eval(f"[" * 32 + "None" + "]" * 32)
         self.assertListEqual(res, ref)  # pyright: ignore [reportArgumentType]
 
-    def test_deeply_nested_exception(self):
+    def test_deeply_nested_exception(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"".join(b"\x91" for _ in range(33)) + b"\xc0")
 
@@ -389,7 +401,7 @@ class UnpackbArrayTest(SequenceTestCase):
 
 
 class UnpackbStrTest(SequenceTestCase):
-    def test_empty_str(self):
+    def test_empty_str(self) -> None:
         u = Unpacker()
         u.feed(b"\xa0")
         u.feed(b"\xd9\x00")
@@ -397,25 +409,25 @@ class UnpackbStrTest(SequenceTestCase):
         u.feed(b"\xdb\x00\x00\x00\x00")
         self.safeSequenceEqual(u, ("",) * 4)
 
-    def test_str_not_ready(self):
+    def test_str_not_ready(self) -> None:
         u = Unpacker()
         u.feed(b"\xd9\x01")
         self.safeSequenceEqual(u, ())
 
-    def test_str_in_parts(self):
+    def test_str_in_parts(self) -> None:
         u = Unpacker()
         u.feed(b"\xd9\x05")
         u.feed(b"he")
         u.feed(b"llo")
         self.safeSequenceEqual(u, ("hello",))
 
-    def test_str8_split_in_1_byte(self):
+    def test_str8_split_in_1_byte(self) -> None:
         u = Unpacker()
         for char in b"\xd9\x01A":
             u.feed(bytes((char,)))
         self.assertEqual(list(u), ["A"])
 
-    def test_huge_string(self):
+    def test_huge_string(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"\xdb\x0f\xff\xff\xff")
         self.assertEqual(
@@ -425,7 +437,7 @@ class UnpackbStrTest(SequenceTestCase):
 
 
 class UnpackbBinTest(SequenceTestCase):
-    def test_huge_data(self):
+    def test_huge_data(self) -> None:
         with self.assertRaises(ValueError) as context:
             unpackb(b"\xc6\x0f\xff\xff\xff")
         self.assertEqual(
@@ -435,7 +447,7 @@ class UnpackbBinTest(SequenceTestCase):
 
 
 class UnpackDateTimeTest(SequenceTestCase):
-    def test_authors_birthday(self):
+    def test_authors_birthday(self) -> None:
         self.assertEqual(
             unpackb(b"\xd7\xff\x00\x00\x00\x00\x1c9\xdfp"),
             datetime(1985, 1, 2, 23, 0, 0, tzinfo=timezone.utc),
