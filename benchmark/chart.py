@@ -12,6 +12,7 @@ msgpack_version = ".".join(map(str, msgpack_version_))
 msgspec_version = msgspec_version_.partition("+")[0]
 
 plt.rcParams["font.size"] = 16
+plt.rcParams["svg.fonttype"] = "none"  # no font embedding
 
 with open("./msgpack_benchmark.json") as fin:
     benchmarks = json.load(fin)["benchmarks"]
@@ -82,5 +83,5 @@ ax2.set_xticks(x + width, sorted(file_names))
 ax2.legend(loc="upper left", ncols=2, prop={"size": 13})
 
 filename = f"benchmark-{amsgpack_version}.svg"
-plt.savefig(filename)
+plt.savefig(filename, format="svg", metadata=None)
 print(f"saved {filename}")
