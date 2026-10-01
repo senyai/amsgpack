@@ -193,6 +193,17 @@ class UnpackerTest(SequenceTestCase):
         with self.assertRaises(StopIteration):
             next(u)
 
+    def test_reenter_in_ext_hook(self):
+        def ext_hook(ext: Ext) -> None:
+            list(u)
+
+        u = Unpacker(ext_hook=ext_hook)
+        u.feed(packb(Ext(12, b"AAAA")))
+        u.feed(packb(Ext(12, b"BBBB")))
+        with self.assertRaises(RuntimeError) as context:
+            len(list(u))
+        self.assertEqual(str(context.exception), "Must not re-enter unpacking")
+
     @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_feed_no_memory(self) -> None:
         u = Unpacker()
