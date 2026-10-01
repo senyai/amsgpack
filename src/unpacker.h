@@ -91,12 +91,17 @@ static inline int can_not_append_stack(Parser const* parser) {
 }
 
 typedef struct {
+  unsigned char unpacking : 1;
+  unsigned char readonly : 1;
+} UnpackerFlags;
+
+typedef struct {
   PyObject_HEAD
   Deque deque;
   Parser parser;
   AMsgPackState* state;
-  int use_tuple;
   PyObject* ext_hook;
+  UnpackerFlags flags;
 } Unpacker;
 
 static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
@@ -135,9 +140,14 @@ static PyObject* Unpacker_iternext(Unpacker* self) {
   } length;
   PyObject* parsed_object;
   char next_byte;
+  if A_UNLIKELY(self->flags.unpacking == 1) {
+    PyErr_SetString(PyExc_RuntimeError, "Must not re-enter unpacking");
+    return NULL;
+  }
+  self->flags.unpacking = 1;
 parse_next:
   if (!deque_has_next_byte(&self->deque)) {
-    return NULL;
+    goto exception;
   }
   next_byte = deque_peek_byte(&self->deque);
 parse_next_with_next_byte_set:
@@ -145,7 +155,7 @@ parse_next_with_next_byte_set:
     case '\x80':
       parsed_object = ANEW_DICT(0);
       if A_UNLIKELY(parsed_object == NULL) {
-        return NULL;
+        goto exception;
       }
       deque_advance_first_bytes(&self->deque, 1);
       break;
@@ -170,11 +180,11 @@ parse_next_with_next_byte_set:
     length_map: {
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-        return NULL;
+        goto exception;
       }
       parsed_object = ANEW_DICT(length.map);
       if A_UNLIKELY(parsed_object == NULL) {
-        return NULL;
+        goto exception;
       }
       if (length.map == 0) {
         break;
@@ -185,7 +195,7 @@ parse_next_with_next_byte_set:
                   .size = length.map,
                   .pos = 0};
       if (!deque_has_next_byte(&self->deque)) {
-        return NULL;
+        goto exception;
       }
       parse_a_key = 1;
       next_byte = deque_peek_byte(&self->deque);
@@ -217,18 +227,18 @@ parse_next_with_next_byte_set:
     length_arr: {
       if A_UNLIKELY(can_not_append_stack(&self->parser)) {
         PyErr_SetString(PyExc_ValueError, "Deeply nested object");
-        return NULL;
+        goto exception;
       }
       parsed_object =
-          (self->use_tuple == 0 ? PyList_New : PyTuple_New)(length.arr);
+          (self->flags.readonly == 0 ? PyList_New : PyTuple_New)(length.arr);
       if A_UNLIKELY(parsed_object == NULL) {
-        return NULL;
+        goto exception;
       }
       if (length.arr == 0) {
         break;
       }
 #ifndef PYPY_VERSION
-      PyObject** values = self->use_tuple == 0
+      PyObject** values = self->flags.readonly == 0
                               ? ((PyListObject*)parsed_object)->ob_item
                               : ((PyTupleObject*)parsed_object)->ob_item;
 #else
@@ -279,7 +289,7 @@ parse_next_with_next_byte_set:
         deque_advance_first_bytes(&self->deque, 1);
         goto length_str;
       }
-      return NULL;
+      goto exception;
     length_str: {
       READ_A_DATA(length.str);
       if (parse_a_key != 0) {
@@ -291,13 +301,13 @@ parse_next_with_next_byte_set:
 
       FREE_A_DATA(length.str);
       if A_UNLIKELY(parsed_object == NULL) {
-        return NULL;
+        goto exception;
       }
       break;
     }
     case '\xc1':  // (never used)
       PyErr_SetString(PyExc_ValueError, "amsgpack: 0xc1 byte must not be used");
-      return NULL;
+      goto exception;
     case '\xc4':  // bin 8
     case '\xc5':  // bin 16
     case '\xc6':  // bin 32
@@ -318,12 +328,12 @@ parse_next_with_next_byte_set:
             FREE_A_DATA(length.bin);
           }
           if A_UNLIKELY(parsed_object == NULL) {
-            return NULL;
+            goto exception;
           }
           break;
         }
       }
-      return NULL;
+      goto exception;
     }
     case '\xc7':  // ext 8
     case '\xc8':  // ext 16
@@ -341,7 +351,7 @@ parse_next_with_next_byte_set:
           goto length_ext;
         }
       }
-      return NULL;
+      goto exception;
     }
     case '\xd0':  // int_8
     case '\xcc':  // uint_8
@@ -352,12 +362,12 @@ parse_next_with_next_byte_set:
             next_byte == '\xcc' ? (long)(unsigned char)byte : (long)byte;
         parsed_object = PyLong_FromLong(value);
         if A_UNLIKELY(parsed_object == NULL) {
-          return NULL;
+          goto exception;
         }
         deque_advance_first_bytes(&self->deque, 1);
         break;
       }
-      return NULL;
+      goto exception;
     case '\xd1':  // int_16
     case '\xcd':  // uint_16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
@@ -366,11 +376,11 @@ parse_next_with_next_byte_set:
         parsed_object = next_byte == '\xcd' ? PyLong_FromLong((long)word.us)
                                             : PyLong_FromLong((long)word.s);
         if A_UNLIKELY(parsed_object == NULL) {
-          return NULL;
+          goto exception;
         }
         break;
       }
-      return NULL;
+      goto exception;
     case '\xd2':  // int_32
     case '\xce':  // uint_32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
@@ -379,11 +389,11 @@ parse_next_with_next_byte_set:
         parsed_object = next_byte == '\xce' ? PyLong_FromUnsignedLong(dword.ul)
                                             : PyLong_FromLong(dword.l);
         if A_UNLIKELY(parsed_object == NULL) {
-          return NULL;
+          goto exception;
         }
         break;
       }
-      return NULL;
+      goto exception;
     case '\xd3':  // int_64
     case '\xcf':  // uint_64
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 9)) {
@@ -393,33 +403,33 @@ parse_next_with_next_byte_set:
                             ? PyLong_FromUnsignedLongLong(qword.ull)
                             : PyLong_FromLongLong(qword.ll);
         if A_UNLIKELY(parsed_object == NULL) {
-          return NULL;
+          goto exception;
         }
         break;
       }
-      return NULL;
+      goto exception;
     case '\xca':  // float (float_32)
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_DWORD;
         parsed_object = PyFloat_FromDouble((double)dword.f);
         if A_UNLIKELY(parsed_object == NULL) {
-          return NULL;
+          goto exception;
         }
         break;
       }
-      return NULL;
+      goto exception;
     case '\xcb':  // double (float_64)
       if (deque_has_next_n_bytes(&self->deque, 9)) {
         deque_advance_first_bytes(&self->deque, 1);
         READ_A_QWORD;
         parsed_object = PyFloat_FromDouble(qword.d);
         if (parsed_object == NULL) {
-          return NULL;
+          goto exception;
         }
         break;
       }
-      return NULL;
+      goto exception;
     case '\xd4':  // fixext 1
     case '\xd5':  // fixext 2
     case '\xd6':  // fixext 4
@@ -430,21 +440,21 @@ parse_next_with_next_byte_set:
         deque_advance_first_bytes(&self->deque, 1);
         goto length_ext;
       }
-      return NULL;
+      goto exception;
     length_ext: {
       READ_A_DATA(length.ext + 1);
       char const code = data[0];
       Ext* ext = PyObject_New(Ext, self->state->ext_type);
       if A_UNLIKELY(ext == NULL) {
         PyMem_Free(allocated);
-        return NULL;  // Allocation failed, likely
+        goto exception;  // Allocation failed, likely
       }
       ext->code = code;
       ext->data = PyBytes_FromStringAndSize(data + 1, length.ext);
       if A_UNLIKELY(ext->data == NULL) {
         Py_DECREF(ext);
         PyMem_Free(allocated);
-        return NULL;
+        goto exception;
       }
       PyObject* new_ext;
       if A_LIKELY(self->ext_hook == NULL) {
@@ -456,7 +466,7 @@ parse_next_with_next_byte_set:
       parsed_object = (PyObject*)new_ext;
       FREE_A_DATA(length.ext + 1);
       if A_UNLIKELY(parsed_object == NULL) {
-        return NULL;  // likely exception in user supplied code
+        goto exception;  // likely exception in user supplied code
       }
       break;
     }
@@ -481,7 +491,7 @@ parse_next_with_next_byte_set:
           goto length_str;
         }
       }
-      return NULL;
+      goto exception;
     }
     case '\xdc':  // array 16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
@@ -490,7 +500,7 @@ parse_next_with_next_byte_set:
         length.arr = word.us;
         goto length_arr;
       }
-      return NULL;
+      goto exception;
     case '\xdd':  // array 32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
@@ -501,7 +511,7 @@ parse_next_with_next_byte_set:
         }
         goto length_arr;
       }
-      return NULL;
+      goto exception;
     case '\xde':  // map 16
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 3)) {
         deque_advance_first_bytes(&self->deque, 1);
@@ -509,7 +519,7 @@ parse_next_with_next_byte_set:
         length.map = word.us;
         goto length_map;
       }
-      return NULL;
+      goto exception;
     case '\xdf':  // map 32
       if A_LIKELY(deque_has_next_n_bytes(&self->deque, 5)) {
         deque_advance_first_bytes(&self->deque, 1);
@@ -520,7 +530,7 @@ parse_next_with_next_byte_set:
         }
         goto length_map;
       }
-      return NULL;
+      goto exception;
     default:
       parsed_object = self->state->byte_object[(unsigned char)next_byte];
       assert(parsed_object != NULL);
@@ -556,7 +566,7 @@ parse_next_with_next_byte_set:
         item->key = NULL;
         Py_DECREF(parsed_object);
         if A_UNLIKELY(set_item_result != 0) {
-          return NULL;
+          goto exception;
         }
         item->action = DICT_KEY;
         item->pos += 1;
@@ -566,7 +576,7 @@ parse_next_with_next_byte_set:
           break;
         }
         if (!deque_has_next_byte(&self->deque)) {
-          return NULL;
+          goto exception;
         }
         parse_a_key = 1;
         next_byte = deque_peek_byte(&self->deque);
@@ -579,17 +589,23 @@ parse_next_with_next_byte_set:
         Py_UNREACHABLE();  // GCOVR_EXCL_LINE
     }
   }
+  self->flags.unpacking = 0;
   return parsed_object;
+exception:
+  self->flags.unpacking = 0;
+  return NULL;
 }
 
 // static struct PyModuleDef amsgpack_module;
 
 static int Unpacker_init(Unpacker* self, PyObject* args, PyObject* kwargs) {
   static char* keywords[] = {"tuple", "ext_hook", NULL};
+  int use_tuple;
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$pO:Unpacker", keywords,
-                                   &self->use_tuple, &self->ext_hook)) {
+                                   &use_tuple, &self->ext_hook)) {
     return -1;
   }
+  self->flags.readonly = use_tuple == 1;
   if A_UNLIKELY(self->ext_hook != NULL &&
                 Py_TYPE(self->ext_hook)->tp_call == NULL) {
     PyErr_SetString(PyExc_TypeError, "`ext_hook` must be callable");
@@ -619,6 +635,7 @@ static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
 
 static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
   Py_CLEAR(self->ext_hook);
+  self->flags.unpacking = 0;
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
     Stack* item = self->parser.stack + (--self->parser.stack_length);
