@@ -11,6 +11,7 @@
       data = PyBytes_AS_STRING(buffer_py);                        \
     }                                                             \
   } while (0)
+#define HAVE_FROZENDICT (PY_VERSION_HEX >= 0x030F0000)
 
 static inline void put2(char* dst, char header, char value) {
   dst[0] = header;
@@ -273,7 +274,13 @@ pack_next_with_obj_type_set:
       }
       PACK_LONG_LONG();
     }
-  } else if A_UNLIKELY(obj_type == &PyDict_Type) {
+  } else if
+#if HAVE_FROZENDICT
+      A_UNLIKELY(obj_type == &PyDict_Type || obj_type == &PyFrozenDict_Type)
+#else
+      A_UNLIKELY(obj_type == &PyDict_Type)
+#endif
+  {
     if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
