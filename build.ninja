@@ -12,6 +12,16 @@ build format: run
 # Test
 #
 
+build unittest: phony $
+  test/test_amsgpack.py $
+  test/test_ext.py $
+  test/test_file_unpacker.py $
+  test/test_pack.py $
+  test/test_suite.py $
+  test/test_timestamp.py $
+  test/test_typing.py $
+  test/test_unpack.py
+
 rule test
   depfile = $out.d
   deps = gcc
@@ -23,7 +33,7 @@ rule test
       -o amsgpack/_amsgpack.cpython-310-x86_64-linux-gnu.so && $
     python -m unittest
   pool = console
-build test: test src/amsgpack.c
+build test: test src/amsgpack.c | unittest
 
 #
 # Coverage
@@ -44,7 +54,7 @@ rule coverage
     echo 'opening in a web browser "$out"' && $
     python -m webbrowser "$out"
   pool = console
-build coverage/coverage_report.html: coverage src/amsgpack.c
+build coverage/coverage_report.html: coverage src/amsgpack.c | unittest
 build coverage: phony coverage/coverage_report.html
 
 #
