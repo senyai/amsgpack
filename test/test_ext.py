@@ -137,6 +137,8 @@ class PackExtTest(TestCase):
         value = Ext(0x43, b"1" * 67000)
         self.assertEqual(packb(value), b"\xc9\x00\x01\x05\xb8C" + b"1" * 67000)
 
+
+class TimestampTest(TestCase):
     def test_is_timestamp(self) -> None:
         self.assertTrue(
             Ext(code=-1, data=b"\x0f\x00\x00\x00" * 1).is_timestamp()
@@ -160,6 +162,12 @@ class PackExtTest(TestCase):
             Timestamp(seconds=251658240, nanoseconds=0),
         )
 
+    def test_invalid_timestamp_length(self) -> None:
+        self.assertEqual(
+            unpackb(packb(Ext(code=-1, data=b"\x00\x00\x00" * 13))),
+            Ext(code=-1, data=b"\x00\x00\x00" * 13),
+        )
+
     def test_to_timestamp_exception(self) -> None:
         with self.assertRaises(ValueError) as context:
             Ext(code=1, data=b"\x0f\x00\x00").to_timestamp()
@@ -177,6 +185,38 @@ class PackExtTest(TestCase):
             "Invalid timestamp length 3, allowed values are "
             "4, 8 and 12 (see MessagePack specification)",
         )
+
+
+class TimestampCmpTest(TestCase):
+    a = Timestamp(seconds=251658240, nanoseconds=0)
+    b = Timestamp(seconds=251658240, nanoseconds=1)
+
+    def test_less(self) -> None:
+        self.assertLess(self.a, self.b)
+
+    def test_greater(self) -> None:
+        self.assertGreater(self.b, self.a)
+
+    def test_equal(self) -> None:
+        self.assertTrue(self.a == self.a)
+        self.assertFalse(self.a != self.a)
+
+    def test_not_equal(self) -> None:
+        self.assertTrue(self.a != self.b)
+        self.assertFalse(self.a == self.b)
+
+
+class ExtCmpTest(TestCase):
+    a = Ext(code=42, data=b"0")
+    b = Ext(code=42, data=b"1")
+
+    def test_equal(self) -> None:
+        self.assertTrue(self.a == self.a)
+        self.assertFalse(self.a != self.a)
+
+    def test_not_equal(self) -> None:
+        self.assertTrue(self.a != self.b)
+        self.assertFalse(self.a == self.b)
 
 
 class UnpackExtTest(SequenceTestCase):
