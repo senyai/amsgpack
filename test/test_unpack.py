@@ -1,4 +1,5 @@
 from amsgpack import packb, Unpacker, Ext, unpackb, Raw, Timestamp
+import sys
 from typing import TypeAlias, cast
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 from .test_amsgpack import SequenceTestCase
@@ -209,6 +210,12 @@ class UnpackerTest(SequenceTestCase):
         u = Unpacker()
         with self.assertRaises(MemoryError), failing_malloc(9, "mem"):
             u.feed(b"\xc6")
+
+    @skipUnless(sys.version_info[:2] >= (3, 15), "Requires Python 3.15")
+    def test_frozendict(self) -> None:
+        fd = Unpacker(tuple=True).unpackb(b"\x82\xa1a\x01\xa1b\x92\x01\x02")
+        self.assertIs(type(fd), frozendict)  # pyright: ignore
+        self.assertEqual(fd, {"a": 1, "b": (1, 2)})
 
 
 class UnpackbTest(SequenceTestCase):

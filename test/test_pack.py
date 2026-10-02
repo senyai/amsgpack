@@ -1,4 +1,5 @@
 from typing import Any, cast
+import sys
 from unittest import skipUnless
 from math import pi
 from amsgpack import packb, Ext, unpackb, Timestamp, Packer
@@ -172,6 +173,11 @@ class PackbTest(SequenceTestCase):
         with self.assertRaises(ValueError) as context:
             packb(...)  # pyright: ignore [reportArgumentType]
         self.assertRegex(str(context.exception), "Deeply nested object")
+
+    @skipUnless(sys.version_info[:2] >= (3, 15), "Requires Python 3.15")
+    def test_can_pack_frozendict(self):
+        bytes = packb(frozendict({"a": 1, "b": (1, 2)}))  # pyright: ignore
+        self.assertEqual(bytes, b"\x82\xa1a\x01\xa1b\x92\x01\x02")
 
 
 class PackbIntTest(SequenceTestCase):

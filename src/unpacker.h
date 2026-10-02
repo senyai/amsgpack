@@ -571,7 +571,16 @@ parse_next_with_next_byte_set:
         item->action = DICT_KEY;
         item->pos += 1;
         if A_UNLIKELY(item->pos == item->size) {
+#if HAVE_FROZENDICT
+          if A_UNLIKELY(self->flags.readonly) {
+            parsed_object = PyFrozenDict_New(item->sequence);
+            Py_DECREF(item->sequence);
+          } else {
+            parsed_object = item->sequence;
+          }
+#else
           parsed_object = item->sequence;
+#endif
           self->parser.stack_length -= 1;
           break;
         }
