@@ -27,7 +27,9 @@ def _run_pyright_on_whole_project():
         [sys.executable, "-m", "pyright", "--outputjson", "."],
         capture_output=True,
     )
-    assert r.returncode == 0, r.stderr
+    if r.returncode != 0:
+        print(r.stdout.decode())
+        raise ValueError(r.stderr)
     return [
         item
         for item in loads(r.stdout)["generalDiagnostics"]
