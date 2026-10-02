@@ -1,6 +1,6 @@
 from typing import Any, cast
 import sys
-from unittest import skipUnless
+from unittest import TestCase, skipUnless
 from math import pi
 from amsgpack import packb, Ext, unpackb, Timestamp, Packer
 from struct import pack
@@ -150,6 +150,13 @@ class PackbTest(SequenceTestCase):
         with self.assertRaises(MemoryError), failing_malloc(1023, "raw"):
             packb(0)
 
+    @skipUnless(sys.version_info[:2] >= (3, 15), "Requires Python 3.15")
+    def test_can_pack_frozendict(self):
+        bytes = packb(frozendict({"a": 1, "b": (1, 2)}))  # pyright: ignore
+        self.assertEqual(bytes, b"\x82\xa1a\x01\xa1b\x92\x01\x02")
+
+
+class DefaultTest(TestCase):
     def test_default_simple(self):
         from array import array
 
@@ -174,10 +181,26 @@ class PackbTest(SequenceTestCase):
             packb(...)  # pyright: ignore [reportArgumentType]
         self.assertRegex(str(context.exception), "Deeply nested object")
 
-    @skipUnless(sys.version_info[:2] >= (3, 15), "Requires Python 3.15")
-    def test_can_pack_frozendict(self):
-        bytes = packb(frozendict({"a": 1, "b": (1, 2)}))  # pyright: ignore
-        self.assertEqual(bytes, b"\x82\xa1a\x01\xa1b\x92\x01\x02")
+    def test_default_must_be_callable(self):
+        class A:
+            pass
+
+        with self.assertRaises(TypeError) as context:
+            Packer(default=A())  # pyright: ignore
+        self.assertRegex(str(context.exception), "`default` must be callable")
+
+
+class PackerTest(TestCase):
+    def test_invalid_arguments(self):
+        with self.assertRaises(TypeError) as context:
+            Packer(unicorn=False)  # pyright: ignore
+        self.assertIn(
+            str(context.exception),
+            (
+                "'unicorn' is an invalid keyword argument for Packer()",
+                "Packer() got an unexpected keyword argument 'unicorn'",
+            ),
+        )
 
 
 class PackbIntTest(SequenceTestCase):
