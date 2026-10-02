@@ -2,7 +2,6 @@ from collections.abc import Sequence
 from unittest import TestCase
 from amsgpack import packb, Ext, Raw, Unpacker
 
-
 Value = (
     dict[str, "Value"]
     | Sequence["Value"]
