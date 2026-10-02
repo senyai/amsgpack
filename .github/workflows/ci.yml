@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: psf/black@25.1.0
+      - uses: psf/black@26.5.1
       - name: clang-format
         run: clang-format --dry-run --Werror src/*.{c,h}
 
