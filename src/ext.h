@@ -225,7 +225,6 @@ static PyType_Slot Ext_slots[] = {{Py_tp_doc, (char *)Ext_doc},
                                   {Py_tp_methods, Ext_methods},
                                   {Py_tp_hash, Ext_hash},
                                   {Py_tp_richcompare, Ext_richcompare},
-                                  {Py_tp_new, PyType_GenericNew},
                                   {0, NULL}};
 END_NO_PEDANTIC
 
