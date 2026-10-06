@@ -607,27 +607,37 @@ exception:
 
 // static struct PyModuleDef amsgpack_module;
 
-static int Unpacker_init(Unpacker* self, PyObject* args, PyObject* kwargs) {
+static Unpacker* Unpacker_new(PyTypeObject* type, PyObject* args,
+                              PyObject* kwargs) {
   static char* keywords[] = {"tuple", "ext_hook", NULL};
   int use_tuple = 0;
+  PyObject* ext_hook = NULL;
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$pO:Unpacker", keywords,
-                                   &use_tuple, &self->ext_hook)) {
-    return -1;
+                                   &use_tuple, &ext_hook)) {
+    return NULL;
   }
-  self->flags.readonly = use_tuple == 1;
-  if A_UNLIKELY(self->ext_hook != NULL &&
-                Py_TYPE(self->ext_hook)->tp_call == NULL) {
+  if A_UNLIKELY(ext_hook != NULL && Py_TYPE(ext_hook)->tp_call == NULL) {
     PyErr_SetString(PyExc_TypeError, "`ext_hook` must be callable");
-    return -1;
+    return NULL;
   }
 
-  self->state =
-      get_amsgpack_state(((PyHeapTypeObject*)Py_TYPE(self))->ht_module);
-  if A_UNLIKELY(self->state == NULL) {
-    return -1;
+  AMsgPackState* state =
+      get_amsgpack_state(((PyHeapTypeObject*)type)->ht_module);
+  if A_UNLIKELY(state == NULL) {
+    return NULL;
   };
-  Py_XINCREF(self->ext_hook);
-  return 0;
+
+  Unpacker* self = (Unpacker*)type->tp_alloc(type, 0);
+  if A_UNLIKELY(self == NULL) {
+    return NULL;
+  }
+  self->state = state;
+  if (ext_hook != NULL) {
+    self->ext_hook = Py_NewRef(ext_hook);
+  }
+  self->flags.readonly = use_tuple == 1;
+
+  return self;
 }
 
 static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
@@ -642,8 +652,8 @@ static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
   Py_RETURN_NONE;
 }
 
-static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
-  Py_CLEAR(self->ext_hook);
+// Make unpacker ready for the next input.
+static void unpacker_reset_(Unpacker* self) {
   self->flags.unpacking = 0;
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
@@ -654,6 +664,11 @@ static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
     }
     memset(item, 0, sizeof(Stack));
   }
+}
+
+// Always returns None. Accessible with `Unpacker.reset`
+static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
+  unpacker_reset_(self);
   Py_RETURN_NONE;
 }
 
@@ -686,15 +701,16 @@ static PyObject* unpacker_unpackb(Unpacker* self, PyObject* obj) {
     PyErr_SetString(PyExc_ValueError, "Extra data");
     goto error;
   }
-  unpacker_reset(self, NULL);
+  unpacker_reset_(self);
   return ret;
 error:
-  unpacker_reset(self, NULL);
+  unpacker_reset_(self);
   return NULL;
 }
 
 static void Unpacker_dealloc(Unpacker* self) {
-  Py_DECREF(unpacker_reset(self, NULL));
+  Py_CLEAR(self->ext_hook);
+  unpacker_reset_(self);
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
@@ -758,8 +774,7 @@ PyDoc_STRVAR(Unpacker_doc,
 BEGIN_NO_PEDANTIC
 static PyType_Slot Unpacker_slots[] = {
     {Py_tp_doc, (char*)Unpacker_doc},
-    {Py_tp_new, PyType_GenericNew},
-    {Py_tp_init, Unpacker_init},
+    {Py_tp_new, Unpacker_new},
     {Py_tp_dealloc, (destructor)Unpacker_dealloc},
     {Py_tp_methods, Unpacker_Methods},
     {Py_tp_iter, AnyUnpacker_iter},

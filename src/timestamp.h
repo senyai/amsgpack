@@ -199,14 +199,20 @@ static Py_hash_t Timestamp_hash(Timestamp *self) {
   return hash == -1 ? -2 : hash;
 }
 
-static int Timestamp_init(Timestamp *self, PyObject *args, PyObject *kwargs) {
+static Timestamp *Timestamp_new(PyTypeObject *type, PyObject *args,
+                                PyObject *kwargs) {
   static char *kwlist[] = {"seconds", "nanoseconds", NULL};
+  Timestamp *self = (Timestamp *)type->tp_alloc(type, 0);
+  if A_UNLIKELY(self == NULL) {
+    return NULL;
+  }
   if A_UNLIKELY(!PyArg_ParseTupleAndKeywords(args, kwargs, "L|I:Timestamp",
                                              kwlist, &self->timestamp.seconds,
                                              &self->timestamp.nanosec)) {
-    return -1;
+    Py_DECREF(self);
+    return NULL;
   }
-  return 0;
+  return self;
 }
 
 static PyObject *Timestamp_repr(Timestamp *self) {
@@ -238,8 +244,7 @@ PyDoc_STRVAR(Timestamp_doc,
 BEGIN_NO_PEDANTIC
 static PyType_Slot Timestamp_slots[] = {
     {Py_tp_doc, (char *)Timestamp_doc},
-    {Py_tp_new, PyType_GenericNew},
-    {Py_tp_init, Timestamp_init},
+    {Py_tp_new, Timestamp_new},
     {Py_tp_repr, Timestamp_repr},
     {Py_tp_members, Timestamp_members},
     {Py_tp_hash, Timestamp_hash},

@@ -27,6 +27,11 @@ class SequenceTestCase(TestCase):
 
 
 class RawTest(TestCase):
+    def test_double_init(self) -> None:
+        raw = Raw(b"123")
+        raw.__init__(b"456")
+        self.assertEqual(raw.data, b"123")
+
     def test_unicode_exception(self) -> None:
         with self.assertRaises(TypeError) as context:
             Raw("123")  # pyright: ignore [reportArgumentType]

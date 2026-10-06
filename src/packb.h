@@ -76,25 +76,34 @@ typedef struct {
   PyObject* default_hook;
 } Packer;
 
-static int Packer_init(Packer* self, PyObject* args, PyObject* kwargs) {
-  static char* keywords[] = {"default", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:Packer", keywords,
-                                   &self->default_hook)) {
-    return -1;
-  }
-  Py_XINCREF(self->default_hook);
-  if A_UNLIKELY(self->default_hook != NULL &&
-                Py_TYPE(self->default_hook)->tp_call == NULL) {
-    Py_DECREF(self->default_hook);
-    PyErr_SetString(PyExc_TypeError, "`default` must be callable");
-    return -1;
-  }
-  self->state =
-      get_amsgpack_state(((PyHeapTypeObject*)Py_TYPE(self))->ht_module);
-  if A_UNLIKELY(self->state == NULL) {
-    return -1;
+static Packer* Packer_new(PyTypeObject* type, PyObject* args,
+                          PyObject* kwargs) {
+  AMsgPackState* state =
+      get_amsgpack_state(((PyHeapTypeObject*)type)->ht_module);
+  if A_UNLIKELY(state == NULL) {
+    return NULL;
   };
-  return 0;
+  static char* keywords[] = {"default", NULL};
+  PyObject* default_hook = NULL;
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:Packer", keywords,
+                                   &default_hook)) {
+    return NULL;
+  }
+  if A_UNLIKELY(default_hook != NULL &&
+                Py_TYPE(default_hook)->tp_call == NULL) {
+    PyErr_SetString(PyExc_TypeError, "`default` must be callable");
+    return NULL;
+  }
+  Packer* self = (Packer*)type->tp_alloc(type, 0);
+  if A_UNLIKELY(self == NULL) {
+    return NULL;
+  }
+  self->state = state;
+  if (default_hook != NULL) {
+    self->default_hook = Py_NewRef(default_hook);
+  }
+
+  return self;
 }
 
 static void Packer_dealloc(Packer* self) {
@@ -560,8 +569,7 @@ PyDoc_STRVAR(Packer_doc,
 BEGIN_NO_PEDANTIC
 static PyType_Slot Packer_slots[] = {
     {Py_tp_doc, (char*)Packer_doc},
-    {Py_tp_new, PyType_GenericNew},
-    {Py_tp_init, Packer_init},
+    {Py_tp_new, Packer_new},
     {Py_tp_dealloc, (destructor)Packer_dealloc},
     {Py_tp_methods, Packer_Methods},
     {0, NULL}};
