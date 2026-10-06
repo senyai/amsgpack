@@ -7,14 +7,17 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "AMsgPack"
-copyright = "2025, Arseniy Terekhin"
+copyright = "2026, Arseniy Terekhin. Released under the MIT License"
 author = "Arseniy Terekhin"
-release = "0.3.0"
+from amsgpack import __version__
+
+release = __version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    "myst_parser",
     "sphinx.ext.autodoc",
     "sphinx.ext.doctest",
     "sphinx.ext.viewcode",

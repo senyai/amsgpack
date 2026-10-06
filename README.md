@@ -2,25 +2,27 @@
 <img src="https://raw.githubusercontent.com/senyai/amsgpack/main/doc/amsgpack.svg" width="300">
 </h1>
 
+<!-- begin-description -->
 ## Python MessagePack module
 
 C library for python 3.10+.
 
 Why:
   * I couldn't negotiate adding type hints to [msgpack-python](https://github.com/msgpack/msgpack-python/pull/552)
-  * I couldn't negotiate adding Unpacker to [ormsgpack](https://github.com/aviramha/ormsgpack/issues/227)
+  * I couldn't negotiate adding `Unpacker` to [ormsgpack](https://github.com/aviramha/ormsgpack/issues/227)
   * There's no stream unpacking in [msgspec](https://github.com/jcrist/msgspec)
   * I couldn't find another MessagePack library
   * `msgpack-python` interfaces are messy and the library is a bit slow
 
-
 ### Installation
 `pip install amsgpack`
+<!-- end-description -->
 
 ### Documentation
 
 https://amsgpack.readthedocs.io/
 
+<!-- begin-examples -->
 ### Examples
 
 ```Python console
@@ -88,6 +90,7 @@ happens when `code == 1`, otherwise `Ext` instance is returned.
 ... )
 array('I', [186, 222])
 ```
+<!-- end-examples -->
 
 ### Benchmark
 
