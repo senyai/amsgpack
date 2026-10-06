@@ -18,10 +18,10 @@ static PyMemberDef Ext_members[] = {
 
 static int Ext_init(Ext *self, PyObject *args, PyObject *kwargs) {
   int code = 0;
+  PyObject *data = NULL;
   static char *kwlist[] = {"code", "data", NULL};
   if A_UNLIKELY(!PyArg_ParseTupleAndKeywords(args, kwargs, "iO!:Ext", kwlist,
-                                             &code, &PyBytes_Type,
-                                             &self->data)) {
+                                             &code, &PyBytes_Type, &data)) {
     return -1;
   }
   if A_UNLIKELY(code < -128 || code > 127) {
@@ -29,12 +29,12 @@ static int Ext_init(Ext *self, PyObject *args, PyObject *kwargs) {
     return -1;
   }
   self->code = (char)code;
-  Py_INCREF(self->data);
+  Py_XSETREF(self->data, Py_NewRef(data));
   return 0;
 }
 
 static void Ext_dealloc(Ext *self) {
-  Py_XDECREF(self->data);
+  Py_CLEAR(self->data);
   Py_TYPE(self)->tp_free((PyObject *)self);
 }
 

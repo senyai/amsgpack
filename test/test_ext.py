@@ -4,6 +4,12 @@ from .test_amsgpack import SequenceTestCase
 
 
 class ExtTest(TestCase):
+    def test_multiple_init(self) -> None:
+        a = Ext(127, b"123")
+        a.__init__(12, b"456")
+        self.assertEqual(a.code, 12)
+        self.assertEqual(a.data, b"456")
+
     def test_unicode_exception(self) -> None:
         with self.assertRaises(TypeError) as context:
             Ext(127, "123")  # pyright: ignore [reportArgumentType]
