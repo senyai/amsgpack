@@ -3,6 +3,11 @@ from unittest import TestCase
 
 
 class TimestampTest(TestCase):
+    def test_double_init(self):
+        ts = Timestamp(seconds=251658240, nanoseconds=5)
+        ts.__init__(seconds=0, nanoseconds=1)
+        self.assertEqual((ts.seconds, ts.nanoseconds), (251658240, 5))
+
     def test_create_0(self):
         ts = Timestamp(seconds=0)
         self.assertEqual((ts.seconds, ts.nanoseconds), (0, 0))
