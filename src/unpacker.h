@@ -609,7 +609,7 @@ exception:
 
 static int Unpacker_init(Unpacker* self, PyObject* args, PyObject* kwargs) {
   static char* keywords[] = {"tuple", "ext_hook", NULL};
-  int use_tuple;
+  int use_tuple = 0;
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$pO:Unpacker", keywords,
                                    &use_tuple, &self->ext_hook)) {
     return -1;
