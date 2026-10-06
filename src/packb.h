@@ -57,10 +57,12 @@ typedef struct {
     LIST_OR_TUPLE_NEXT,
     KEY_NEXT,
     VALUE_NEXT,
-    DEFAULT_NEXT
+    DEFAULT_NEXT,
+    FREE_DEFAULT_RES
   } action;
   union {
     PyObject* sequence;
+    PyObject* default_result;
     PyObject** values;
   };
   Py_ssize_t size;
@@ -186,7 +188,7 @@ pack_next_with_obj_type_set:
       if A_LIKELY(u8size == 0) {
         u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
         if A_UNLIKELY(u8string == NULL) {
-          return NULL;
+          goto error;
         }
       } else {
         u8string = ((PyCompactUnicodeObject*)obj)->utf8;
@@ -464,13 +466,12 @@ pack_next_with_obj_type_set:
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
     }
-    PyObject* new_obj = PyObject_CallOneArg(self->default_hook, obj);
-    if A_UNLIKELY(new_obj == NULL) {
-      return NULL;  // likely exception in user code
+    obj = PyObject_CallOneArg(self->default_hook, obj);
+    if A_UNLIKELY(obj == NULL) {
+      goto error;  // likely exception in user code
     }
-    Py_DECREF(obj);
-    obj = new_obj;
-    stack[stack_length++] = (PackbStack){.action = DEFAULT_NEXT};
+    stack[stack_length++] =
+        (PackbStack){.default_result = obj, .action = FREE_DEFAULT_RES};
     goto pack_next;
   }
 
@@ -500,6 +501,9 @@ pack_next_with_obj_type_set:
         item->action = KEY_NEXT;
         obj = item->value;
         goto pack_next;
+      case FREE_DEFAULT_RES:
+        Py_DECREF(item->default_result);
+        // fall through
       case DEFAULT_NEXT:
         stack_length -= 1;
         break;
@@ -513,6 +517,14 @@ pack_next_with_obj_type_set:
   return buffer_py;
 error:
   Py_XDECREF(buffer_py);
+  while (stack_length) {
+    PackbStack* item = &stack[stack_length - 1];
+    if (item->action == FREE_DEFAULT_RES) {
+      Py_DECREF(item->default_result);
+    }
+    stack_length -= 1;
+  }
+
   return NULL;
 }
 
