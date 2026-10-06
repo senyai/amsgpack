@@ -11,8 +11,8 @@ RecursiveDict: TypeAlias = "dict[int, RecursiveDict | None]"
 
 class UnpackerTest(SequenceTestCase):
     def test_double_init(self) -> None:
-        u = Unpacker(tuple=True)
-        u.__init__(tuple=False)
+        u = Unpacker(readonly=True)
+        u.__init__(readonly=False)
         self.assertEqual(u.unpackb(b"\x90"), ())
 
     def test_unpacker_gets_no_argumens(self) -> None:
@@ -92,7 +92,7 @@ class UnpackerTest(SequenceTestCase):
         self.safeSequenceEqual(u, ([[], []],))
 
     def test_list_inside_list_as_tuple(self) -> None:
-        u = Unpacker(tuple=True)
+        u = Unpacker(readonly=True)
         u.feed(b"\x92\x90\x90")
         self.safeSequenceEqual(u, (((), ()),))
 
@@ -218,7 +218,7 @@ class UnpackerTest(SequenceTestCase):
 
     @skipUnless(sys.version_info[:2] >= (3, 15), "Requires Python 3.15")
     def test_frozendict(self) -> None:
-        fd = Unpacker(tuple=True).unpackb(b"\x82\xa1a\x01\xa1b\x92\x01\x02")
+        fd = Unpacker(readonly=True).unpackb(b"\x82\xa1a\x01\xa1b\x92\x01\x02")
         self.assertIs(type(fd), frozendict)  # pyright: ignore
         self.assertEqual(fd, {"a": 1, "b": (1, 2)})
 

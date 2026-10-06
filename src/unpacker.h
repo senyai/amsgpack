@@ -605,15 +605,13 @@ exception:
   return NULL;
 }
 
-// static struct PyModuleDef amsgpack_module;
-
 static Unpacker* Unpacker_new(PyTypeObject* type, PyObject* args,
                               PyObject* kwargs) {
-  static char* keywords[] = {"tuple", "ext_hook", NULL};
-  int use_tuple = 0;
+  static char* keywords[] = {"readonly", "ext_hook", NULL};
+  int readonly = 0;
   PyObject* ext_hook = NULL;
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$pO:Unpacker", keywords,
-                                   &use_tuple, &ext_hook)) {
+                                   &readonly, &ext_hook)) {
     return NULL;
   }
   if A_UNLIKELY(ext_hook != NULL && Py_TYPE(ext_hook)->tp_call == NULL) {
@@ -635,7 +633,7 @@ static Unpacker* Unpacker_new(PyTypeObject* type, PyObject* args,
   if (ext_hook != NULL) {
     self->ext_hook = Py_NewRef(ext_hook);
   }
-  self->flags.readonly = use_tuple == 1;
+  self->flags.readonly = readonly;
 
   return self;
 }

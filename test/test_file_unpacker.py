@@ -116,7 +116,7 @@ class FileUnpackerTest(TestCase):
 
     def test_read_with_argument(self):
         infinite_file = InfiniteFile()
-        unpacker = amsgpack.FileUnpacker(infinite_file, 1024, tuple=True)
+        unpacker = amsgpack.FileUnpacker(infinite_file, 1024, readonly=True)
         self.assertEqual(next(unpacker), (-1,))
         self.assertEqual(infinite_file.size, 1024)
 
