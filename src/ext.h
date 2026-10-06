@@ -186,7 +186,7 @@ static PyObject *Ext_richcompare(Ext *self, PyObject *other, int op) {
 
 PyDoc_STRVAR(Ext_to_timestamp_doc,
              "to_timestamp($self, /)\n--\n\n"
-             "Converts ``data`` to ``amsgpack.Timestamp``");
+             "Converts ``data`` to :class:`amsgpack.Timestamp`");
 PyDoc_STRVAR(Ext_to_datetime_doc,
              "to_datetime($self, /)\n--\n\n"
              "Converts ``data`` to ``datetime.datetime``");
@@ -214,6 +214,9 @@ static PyMethodDef Ext_methods[] = {
 PyDoc_STRVAR(Ext_doc,
              "Ext(code, data)\n"
              "--\n\n"
+             ":param code: int between -128 and 127\n"
+             ":param data: bytes object\n"
+             "\n"
              "Ext type from MessagePack specification\n"
              "\n"
              ">>> from amsgpack import Ext, packb\n"

@@ -728,13 +728,13 @@ PyDoc_STRVAR(unpacker_feed_doc,
              "Append ``bytes`` to internal queue.");
 PyDoc_STRVAR(unpacker_unpackb_doc,
              "unpackb($self, data, /)\n--\n\n"
-             "Deserialize ``data`` (a ``bytes`` object) to a Python object. By "
+             "Deserialize ``data`` (a ``bytes`` object) to a Python object by "
              "calling '__next__' one time and ensuring there's no more data");
 PyDoc_STRVAR(
     unpacker_reset_doc,
     "reset($self, /)\n--\n\n"
     "Cleans up internal queue, that was filled by :meth:`feed` method and "
-    "and cleans up stack, that might've been filled by :meth:`__next__`");
+    "cleans up stack, that might've been filled by :meth:`__next__`");
 
 static PyMethodDef Unpacker_Methods[] = {
     {"feed", (PyCFunction)&unpacker_feed, METH_O, unpacker_feed_doc},
@@ -744,16 +744,22 @@ static PyMethodDef Unpacker_Methods[] = {
 };
 
 PyDoc_STRVAR(Unpacker_doc,
-             "Unpacker(tuple = False, ext_hook = None)\n"
+             "Unpacker(readonly = False, ext_hook = None)\n"
              "--\n\n"
              "Unpack bytes to python objects.\n"
              "\n"
-             "The optional *tuple* argument tells the :class:`Unpacker` to "
-             "output sequences as ``tuple`` instead of ``list``. The "
-             "``amsgpack.unpackb`` function is created using::\n\n"
+             ":param readonly: tells the :class:`Unpacker` to "
+             "output sequences as ``tuple`` instead of ``list``, and if "
+             " ``frozendict`` is available use it.\n"
+             ":param ext_hook: A callable that takes a single :class:`Ext` "
+             "argument and returns the Python object to use in its place. "
+             "Default implementation converts `Ext` with code -1 to "
+             "`datetime.datetime`` \n"
+             "\n"
+             "The ``amsgpack.unpackb`` function is created using::\n\n"
              "  unpackb = Unpacker().unpackb\n\n"
              "\n"
-             "ext_hook example:\n"
+             "`ext_hook` example:\n"
              "\n"
              ""
              ">>> from amsgpack import Ext, Unpacker\n"

@@ -226,7 +226,7 @@ static PyObject *Timestamp_repr(Timestamp *self) {
 }
 
 PyDoc_STRVAR(Timestamp_doc,
-             "Timestamp(seconds, nanoseconds)\n"
+             "Timestamp(seconds, nanoseconds = 0)\n"
              "--\n\n"
              "Timestamp extension type from MessagePack specification:\n\n"
              ">>> from amsgpack import Timestamp, packb\n"
