@@ -546,25 +546,30 @@ static PyMethodDef Packer_Methods[] = {
     {NULL, NULL, 0, NULL}  // Sentinel
 };
 
-PyDoc_STRVAR(Packer_doc,
-             "Packer(default=None)\n--\n\n"
-             "Class for holding ``default`` callback for :meth:`unpackb` to "
-             "use. The ``amsgpack.packb`` function is created using::\n\n"
-             "  packb = Packer().packb\n\n"
-             "\n"
-             "Default callback example:\n\n"
-             ">>> from typing import Any\n"
-             ">>> from amsgpack import Ext, Packer\n"
-             ">>> from array import array\n"
-             ">>>\n"
-             ">>> def default(value: Any) -> Ext:\n"
-             "...     if isinstance(value, array):\n"
-             "...         return Ext(1, value.tobytes())\n"
-             "...     raise ValueError(f\"Unserializable object: {value}\")\n"
-             "...\n"
-             ">>> packb = Packer(default=default).packb\n"
-             ">>> packb(array('I', [0xBA, 0xDE]))\n"
-             "b'\\xd7\\x01\\xba\\x00\\x00\\x00\\xde\\x00\\x00\\x00'\n");
+PyDoc_STRVAR(
+    Packer_doc,
+    "Packer(default=None)\n--\n\n"
+    "Class for holding ``default`` callback for :meth:`packb` to "
+    "use. The :func:`amsgpack.packb` function is created using::\n\n"
+    "  packb = Packer().packb\n\n"
+    "\n"
+    ":param default: A callable that takes one argument and returns a value "
+    "  that amsgpack supports. This is used as a fallback for "
+    "  unserializable objects. It must be a callable object.\n"
+    "\n"
+    "Default callback example:\n\n"
+    ">>> from typing import Any\n"
+    ">>> from amsgpack import Ext, Packer\n"
+    ">>> from array import array\n"
+    ">>>\n"
+    ">>> def default(value: Any) -> Ext:\n"
+    "...     if isinstance(value, array):\n"
+    "...         return Ext(1, value.tobytes())\n"
+    "...     raise ValueError(f\"Unserializable object: {value}\")\n"
+    "...\n"
+    ">>> packb = Packer(default=default).packb\n"
+    ">>> packb(array('I', [0xBA, 0xDE]))\n"
+    "b'\\xd7\\x01\\xba\\x00\\x00\\x00\\xde\\x00\\x00\\x00'\n");
 
 BEGIN_NO_PEDANTIC
 static PyType_Slot Packer_slots[] = {

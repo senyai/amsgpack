@@ -96,18 +96,23 @@ static void FileUnpacker_dealloc(FileUnpacker* self) {
   Py_XDECREF(self->read_size);
   Unpacker_dealloc(&self->unpacker);
 }
-PyDoc_STRVAR(FileUnpacker_doc,
-             "FileUnpacker(file, read_size, tuple = False, ext_hook = None)\n"
-             "--\n\n"
-             "Iteratively unpack binary stream to python objects:\n\n"
-             ">>> from amsgpack import FileUnpacker\n"
-             ">>> from io import BytesIO\n"
-             ">>> for data in FileUnpacker(BytesIO(b'\\x00\\x01\\x02')):\n"
-             "...     print(data)\n"
-             "...\n"
-             "0\n"
-             "1\n"
-             "2\n"
+PyDoc_STRVAR(
+    FileUnpacker_doc,
+    "FileUnpacker(file, read_size = -1, readonly = False, ext_hook = None)\n"
+    "--\n\n"
+    ":param file: `BinaryStream` that has read method\n"
+    ":param read_size: argument that is passed to `read_size.read` method\n"
+    ":param readonly: see :class:`Unpacker`\n"
+    ":param ext_hook: see :class:`Unpacker`\n\n"
+    "Iteratively unpack binary stream to python objects:\n\n"
+    ">>> from amsgpack import FileUnpacker\n"
+    ">>> from io import BytesIO\n"
+    ">>> for data in FileUnpacker(BytesIO(b'\\x00\\x01\\x02')):\n"
+    "...     print(data)\n"
+    "...\n"
+    "0\n"
+    "1\n"
+    "2\n"
 
 );
 
