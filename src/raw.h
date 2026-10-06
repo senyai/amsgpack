@@ -11,18 +11,23 @@ static PyMemberDef Raw_members[] = {
     {NULL, 0, 0, 0, NULL}  // Sentinel
 };
 
-static int Raw_init(Raw *self, PyObject *args, PyObject *kwargs) {
+static Raw *Raw_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
   static char *kwlist[] = {"data", NULL};
+  PyObject *data = NULL;
   if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:Raw", kwlist,
-                                   &PyBytes_Type, &self->data)) {
-    return -1;
+                                   &PyBytes_Type, &data)) {
+    return NULL;
   }
-  Py_INCREF(self->data);
-  return 0;
+  Raw *self = (Raw *)type->tp_alloc(type, 0);
+  if A_UNLIKELY(self == NULL) {
+    return NULL;
+  }
+  self->data = Py_NewRef(data);
+  return self;
 }
 
 static void Raw_dealloc(Raw *self) {
-  Py_XDECREF(self->data);
+  Py_DECREF(self->data);
   Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -50,9 +55,8 @@ PyDoc_STRVAR(
 BEGIN_NO_PEDANTIC
 static PyType_Slot Raw_slots[] = {
     {Py_tp_doc, (char *)Raw_doc},
-    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_new, Raw_new},
     {Py_tp_dealloc, (destructor)Raw_dealloc},
-    {Py_tp_init, (initproc)Raw_init},
     {Py_tp_repr, (reprfunc)Raw_repr},
     {Py_tp_members, Raw_members},
     {Py_tp_hash, (hashfunc)Raw_hash},

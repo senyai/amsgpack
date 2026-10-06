@@ -6,46 +6,51 @@ typedef struct {
   PyObject* read_size;
 } FileUnpacker;
 
-static int FileUnpacker_init(FileUnpacker* self, PyObject* args,
-                             PyObject* kwargs) {
+static FileUnpacker* FileUnpacker_new(PyTypeObject* type, PyObject* args,
+                                      PyObject* kwargs) {
   PyObject* file = NULL;
-  PyObject* read_size = NULL;
+  PyObject* read_size = NULL;  // default argument to call read with
   if (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
-    return -1;
+    return NULL;
   }
 
   PyObject* read_callback = PyObject_GetAttrString(file, "read");
   if A_UNLIKELY(read_callback == NULL) {
-    return -1;  // PyObject_GetAttrString already set the exception
+    return NULL;  // PyObject_GetAttrString already set the exception
   }
 
   if A_UNLIKELY(Py_TYPE(read_callback)->tp_call == NULL) {
-    Py_DECREF(read_callback);
     PyErr_Format(PyExc_TypeError, "`%s.read` must be callable",
                  Py_TYPE(file)->tp_name);
-    return -1;
+    goto error;
   }
 
-  PyObject* no_args = PyTuple_New(0);
-  if A_UNLIKELY(no_args == NULL) {
-    return -1;  // GCOVR_EXCL_LINE
-  }
-  if (Unpacker_init(&self->unpacker, no_args, kwargs) != 0) {
-    return -1;
-  }
-  Py_DECREF(no_args);
-  self->read_callback = read_callback;
   if (read_size == NULL) {
-    // handle default value
+    // use default value of -1
     read_size = PyLong_FromLong(-1);
-    if (read_size == NULL) {
-      return -1;
+    if A_UNLIKELY(read_size == NULL) {
+      goto error;
     }
   } else {
     Py_INCREF(read_size);
   }
+
+  PyObject* no_args = PyTuple_New(0);
+  if A_UNLIKELY(no_args == NULL) {
+    goto error;  // GCOVR_EXCL_LINE
+  }
+  FileUnpacker* self = (FileUnpacker*)Unpacker_new(type, no_args, kwargs);
+  Py_DECREF(no_args);
+  if A_UNLIKELY(self == NULL) {
+    goto error;
+  }
+  self->read_callback = read_callback;
   self->read_size = read_size;
-  return 0;
+  return self;
+error:
+  Py_DECREF(read_callback);
+  Py_XDECREF(read_size);
+  return NULL;
 }
 
 static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
@@ -109,8 +114,7 @@ PyDoc_STRVAR(FileUnpacker_doc,
 BEGIN_NO_PEDANTIC
 static PyType_Slot FileUnpacker_slots[] = {
     {Py_tp_doc, (char*)FileUnpacker_doc},
-    {Py_tp_new, PyType_GenericNew},
-    {Py_tp_init, FileUnpacker_init},
+    {Py_tp_new, FileUnpacker_new},
     {Py_tp_dealloc, (destructor)FileUnpacker_dealloc},
     {Py_tp_iter, AnyUnpacker_iter},
     {Py_tp_iternext, (iternextfunc)FileUnpacker_iternext},

@@ -16,21 +16,26 @@ static PyMemberDef Ext_members[] = {
     {NULL, 0, 0, 0, NULL}  // Sentinel
 };
 
-static int Ext_init(Ext *self, PyObject *args, PyObject *kwargs) {
+static Ext *Ext_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
   int code = 0;
   PyObject *data = NULL;
   static char *kwlist[] = {"code", "data", NULL};
   if A_UNLIKELY(!PyArg_ParseTupleAndKeywords(args, kwargs, "iO!:Ext", kwlist,
                                              &code, &PyBytes_Type, &data)) {
-    return -1;
+    return NULL;
   }
   if A_UNLIKELY(code < -128 || code > 127) {
     PyErr_SetString(PyExc_ValueError, "`code` must be between -128 and 127");
-    return -1;
+    return NULL;
   }
+  Ext *self = (Ext *)type->tp_alloc(type, 0);
+  if A_UNLIKELY(self == NULL) {
+    return NULL;
+  }
+
   self->code = (char)code;
-  Py_XSETREF(self->data, Py_NewRef(data));
-  return 0;
+  self->data = Py_NewRef(data);
+  return self;
 }
 
 static void Ext_dealloc(Ext *self) {
@@ -217,9 +222,8 @@ PyDoc_STRVAR(Ext_doc,
 
 BEGIN_NO_PEDANTIC
 static PyType_Slot Ext_slots[] = {{Py_tp_doc, (char *)Ext_doc},
-                                  {Py_tp_new, PyType_GenericNew},
+                                  {Py_tp_new, Ext_new},
                                   {Py_tp_dealloc, Ext_dealloc},
-                                  {Py_tp_init, Ext_init},
                                   {Py_tp_repr, Ext_repr},
                                   {Py_tp_members, Ext_members},
                                   {Py_tp_methods, Ext_methods},

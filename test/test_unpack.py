@@ -10,6 +10,11 @@ RecursiveDict: TypeAlias = "dict[int, RecursiveDict | None]"
 
 
 class UnpackerTest(SequenceTestCase):
+    def test_double_init(self) -> None:
+        u = Unpacker(tuple=True)
+        u.__init__(tuple=False)
+        self.assertEqual(u.unpackb(b"\x90"), ())
+
     def test_unpacker_gets_no_argumens(self) -> None:
         with self.assertRaises(TypeError) as context:
             Unpacker("what", "is", "that")  # pyright: ignore[reportCallIssue]

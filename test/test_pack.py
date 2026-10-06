@@ -191,6 +191,18 @@ class DefaultTest(TestCase):
 
 
 class PackerTest(TestCase):
+    def test_double_init(self):
+        def default_1(value: Any) -> int:
+            return 42
+
+        def default_2(value: Any) -> int:
+            return 67
+
+        p = Packer(default=default_1)
+        p.__init__(default=default_2)
+        res = p.packb(...)
+        self.assertEqual(res, chr(42).encode())
+
     def test_invalid_arguments(self):
         with self.assertRaises(TypeError) as context:
             Packer(unicorn=False)  # pyright: ignore

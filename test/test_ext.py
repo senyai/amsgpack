@@ -4,11 +4,10 @@ from .test_amsgpack import SequenceTestCase
 
 
 class ExtTest(TestCase):
-    def test_multiple_init(self) -> None:
+    def test_double_init(self) -> None:
         a = Ext(127, b"123")
         a.__init__(12, b"456")
-        self.assertEqual(a.code, 12)
-        self.assertEqual(a.data, b"456")
+        self.assertEqual((a.code, a.data), (127, b"123"))  # behave like tuple
 
     def test_unicode_exception(self) -> None:
         with self.assertRaises(TypeError) as context:
@@ -145,6 +144,11 @@ class PackExtTest(TestCase):
 
 
 class TimestampTest(TestCase):
+    def test_double_init(self):
+        ts = Timestamp(seconds=251658240, nanoseconds=5)
+        ts.__init__(seconds=0, nanoseconds=1)
+        self.assertEqual((ts.seconds, ts.nanoseconds), (251658240, 5))
+
     def test_is_timestamp(self) -> None:
         self.assertTrue(
             Ext(code=-1, data=b"\x0f\x00\x00\x00" * 1).is_timestamp()
