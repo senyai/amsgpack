@@ -64,7 +64,7 @@ class Unpacker(Generic[TU]):
     def __init__(
         self,
         *,
-        tuple: bool = False,
+        readonly: bool = False,
         ext_hook: Callable[[Ext], TU] | None = None,
     ) -> None: ...
     def feed(self, data: bytes) -> None: ...
@@ -84,7 +84,7 @@ class FileUnpacker(Generic[TU]):
         size: int = -1,
         /,
         *,
-        tuple: bool = False,
+        readonly: bool = False,
         ext_hook: Callable[[Ext], TU] | None = None,
     ) -> None: ...
     def __iter__(self) -> FileUnpacker[TU]: ...
