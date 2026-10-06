@@ -144,10 +144,7 @@ class PackExtTest(TestCase):
 
 
 class TimestampTest(TestCase):
-    def test_double_init(self):
-        ts = Timestamp(seconds=251658240, nanoseconds=5)
-        ts.__init__(seconds=0, nanoseconds=1)
-        self.assertEqual((ts.seconds, ts.nanoseconds), (251658240, 5))
+    # the `Timestamp` class is tested in `test_timestamp.py``
 
     def test_is_timestamp(self) -> None:
         self.assertTrue(
