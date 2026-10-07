@@ -15,6 +15,16 @@ class UnpackerTest(SequenceTestCase):
         u.__init__(readonly=False)
         self.assertEqual(u.unpackb(b"\x90"), ())
 
+    def test_unpackb_with_non_empty_buffer(self) -> None:
+        u = Unpacker(readonly=True)
+        u.feed(b"\x01")
+        with self.assertRaises(RuntimeError) as context:
+            u.unpackb(b"\x02")
+        self.assertEqual(
+            str(context.exception),
+            "Can't call `unpackb` on `Unpacker` that has non empty buffer",
+        )
+
     def test_unpacker_gets_no_argumens(self) -> None:
         with self.assertRaises(TypeError) as context:
             Unpacker("what", "is", "that")  # pyright: ignore[reportCallIssue]

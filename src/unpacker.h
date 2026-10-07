@@ -670,7 +670,15 @@ static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
   Py_RETURN_NONE;
 }
 
+// `Unpacker.unpackb`
+// Expects empty `deque`
 static PyObject* unpacker_unpackb(Unpacker* self, PyObject* obj) {
+  if A_UNLIKELY(self->deque.deque_first != NULL) {
+    PyErr_SetString(
+        PyExc_RuntimeError,
+        "Can't call `unpackb` on `Unpacker` that has non empty buffer");
+    return NULL;
+  }
   if A_UNLIKELY(PyBytes_CheckExact(obj) == 0) {
     PyObject* bytes_obj = PyBytes_FromObject(obj);
     if (bytes_obj == NULL) {
