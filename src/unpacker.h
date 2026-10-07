@@ -643,6 +643,10 @@ static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
                  Py_TYPE(obj)->tp_name);
     return NULL;
   }
+  if A_UNLIKELY(self->deque.size == 0 && self->deque.deque_first != NULL) {
+    PyErr_SetString(PyExc_RuntimeError, "Must not call `feed` in `ext_hook`");
+    return NULL;
+  }
   if A_UNLIKELY(deque_append(&self->deque, obj) < 0) {
     return PyErr_NoMemory();
   }
