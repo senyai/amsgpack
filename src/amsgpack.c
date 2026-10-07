@@ -220,8 +220,9 @@ PyMODINIT_FUNC PyInit__amsgpack(void) {
 #ifdef AMSGPACK_FUZZER
 static PyObject* import_amsgpack(void) {
   Py_InitializeEx(0);
-  PyObject* module = PyImport_ImportModule("amsgpack");
+  PyObject* module = PyImport_ImportModule("amsgpack._amsgpack");
   if (PyErr_Occurred()) {
+    printf("Python version: %s\n", Py_GetVersion());
     PyErr_Print();
   }
   assert(module != NULL);
