@@ -1,0 +1,6 @@
+google-benchmark
+ormsgpack
+msgpack
+amsgpack
+msgspec
+matplotlib
