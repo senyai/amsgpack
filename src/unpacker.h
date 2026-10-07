@@ -666,6 +666,12 @@ static void unpacker_reset_(Unpacker* self) {
 
 // Always returns None. Accessible with `Unpacker.reset`
 static PyObject* unpacker_reset(Unpacker* self, PyObject* Py_UNUSED(unused)) {
+  if A_UNLIKELY(self->deque.size == 0 && self->deque.deque_first != NULL) {
+    PyErr_SetString(PyExc_RuntimeError,
+                    "Can't call `reset` on `Unpacker` while in `ext_hook`");
+    return NULL;
+  }
+
   unpacker_reset_(self);
   Py_RETURN_NONE;
 }
