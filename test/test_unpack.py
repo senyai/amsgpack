@@ -220,6 +220,19 @@ class UnpackerTest(SequenceTestCase):
             len(list(u))
         self.assertEqual(str(context.exception), "Must not re-enter unpacking")
 
+    def test_reset_must_fail_in_ext_hook(self):
+        def ext_hook(ext: Ext) -> None:
+            u.reset()
+
+        u = Unpacker(ext_hook=ext_hook)
+        u.feed(packb(Ext(12, b"AAAA")))
+        with self.assertRaises(RuntimeError) as context:
+            len(list(u))
+        self.assertEqual(
+            str(context.exception),
+            "Can't call `reset` on `Unpacker` while in `ext_hook`",
+        )
+
     @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_feed_no_memory(self) -> None:
         u = Unpacker()
