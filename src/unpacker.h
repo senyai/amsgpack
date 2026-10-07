@@ -91,7 +91,6 @@ static inline int can_not_append_stack(Parser const* parser) {
 }
 
 typedef struct {
-  unsigned char unpacking : 1;
   unsigned char readonly : 1;
 } UnpackerFlags;
 
@@ -140,13 +139,11 @@ static PyObject* Unpacker_iternext(Unpacker* self) {
   } length;
   PyObject* parsed_object;
   char next_byte;
-  if A_UNLIKELY(self->flags.unpacking == 1) {
-    PyErr_SetString(PyExc_RuntimeError, "Must not re-enter unpacking");
-    return NULL;
-  }
-  self->flags.unpacking = 1;
 parse_next:
   if (!deque_has_next_byte(&self->deque)) {
+    if A_UNLIKELY(self->deque.size == 0 && self->deque.deque_first != NULL) {
+      PyErr_SetString(PyExc_RuntimeError, "Must not re-enter unpacking");
+    }
     goto exception;
   }
   next_byte = deque_peek_byte(&self->deque);
@@ -460,7 +457,11 @@ parse_next_with_next_byte_set:
       if A_LIKELY(self->ext_hook == NULL) {
         new_ext = Ext_default(ext, NULL);
       } else {
+        Py_ssize_t const original_length = self->deque.size;
+        // move `deque` to `in ext_hook` mode
+        self->deque.size = 0;
         new_ext = PyObject_CallOneArg(self->ext_hook, (PyObject*)ext);
+        self->deque.size = original_length;
       }
       Py_DECREF(ext);
       parsed_object = (PyObject*)new_ext;
@@ -598,10 +599,8 @@ parse_next_with_next_byte_set:
         Py_UNREACHABLE();  // GCOVR_EXCL_LINE
     }
   }
-  self->flags.unpacking = 0;
   return parsed_object;
 exception:
-  self->flags.unpacking = 0;
   return NULL;
 }
 
@@ -652,7 +651,6 @@ static PyObject* unpacker_feed(Unpacker* self, PyObject* obj) {
 
 // Make unpacker ready for the next input.
 static void unpacker_reset_(Unpacker* self) {
-  self->flags.unpacking = 0;
   deque_clean(&self->deque);
   while (self->parser.stack_length) {
     Stack* item = self->parser.stack + (--self->parser.stack_length);
