@@ -50,6 +50,7 @@ static inline void deque_clean(Deque *deque) {
   deque->size_first = 0;
 }
 
+// INCREFs `bytes` after `bytes` were successfully put onto the deque
 // returns: -1 - failure
 //           0 - success
 //           1 - no op, when bytes size is 0
