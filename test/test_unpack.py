@@ -257,6 +257,17 @@ class UnpackerTest(SequenceTestCase):
         self.assertIs(type(fd), frozendict)  # pyright: ignore
         self.assertEqual(fd, {"a": 1, "b": (1, 2)})
 
+    @skipUnless(sys.version_info[:2] >= (3, 15), "Requires Python 3.15")
+    def test_frozendict_as_key(self) -> None:
+        ref = {  # pyright: ignore
+            frozendict({"a": 1}): frozendict({"b": 2}),  # pyright: ignore
+            frozendict({"c": 3}): frozendict({"d": 4}),  # pyright: ignore
+        }
+        data = packb(ref)  # pyright: ignore
+        fd = Unpacker(readonly=True).unpackb(data)
+        self.assertIs(type(fd), frozendict)  # pyright: ignore
+        self.assertEqual(fd, ref)
+
 
 class UnpackbTest(SequenceTestCase):
     def test_memoryview(self) -> None:
