@@ -220,6 +220,18 @@ class UnpackerTest(SequenceTestCase):
             len(list(u))
         self.assertEqual(str(context.exception), "Must not re-enter unpacking")
 
+    def test_feed_must_fail_in_ext_hook(self):
+        def ext_hook(ext: Ext) -> None:
+            u.feed(b"\x01")
+
+        u = Unpacker(ext_hook=ext_hook)
+        u.feed(packb(Ext(12, b"AAAA")))
+        with self.assertRaises(RuntimeError) as context:
+            len(list(u))
+        self.assertEqual(
+            str(context.exception), "Must not call `feed` in `ext_hook`"
+        )
+
     def test_reset_must_fail_in_ext_hook(self):
         def ext_hook(ext: Ext) -> None:
             u.reset()
