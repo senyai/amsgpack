@@ -1,12 +1,19 @@
 ---
 BasedOnStyle: google
 Language: Cpp
+PointerAlignment: Left
+# DerivePointerAlignment: true
 SpaceBeforeParensOptions:
   AfterForeachMacros: false
 SpaceBeforeParens: Custom
 ForEachMacros:
   - A_LIKELY
   - A_UNLIKELY
+IfMacros:
+  - if_error
+  - if_user
+  - if_algo
+  - if_perf
 StatementMacros:
   - PyObject_HEAD
 SpaceBeforeInheritanceColon: false

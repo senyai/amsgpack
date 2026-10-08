@@ -1,6 +1,4 @@
 #include <Python.h>
-#include <datetime.h>
-#include <inttypes.h>
 
 #include "common.h"
 
@@ -16,7 +14,7 @@
 #define SECONDS_PER_DAY 86400
 
 static int64_t days_since_epoch(int year, int month, int day) {
-  if (month <= 2) {
+  if_algo (month <= 2) {
     year--;
     month += 12;
   }
@@ -40,8 +38,8 @@ typedef struct {
   MsgPackTimestamp timestamp;
 } Timestamp;
 
-static PyObject *timestamp_to_datetime(MsgPackTimestamp ts) {
-  if A_UNLIKELY(ts.seconds < -62135596800 || ts.seconds > 253402300800) {
+static PyObject* timestamp_to_datetime(MsgPackTimestamp ts) {
+  if_user A_UNLIKELY(ts.seconds < -62135596800 || ts.seconds > 253402300800) {
     PyErr_SetString(PyExc_ValueError, "timestamp out of range");
     return NULL;
   }
@@ -49,9 +47,9 @@ static PyObject *timestamp_to_datetime(MsgPackTimestamp ts) {
   int micros = 0, months, remyears, remdays, remsecs;
   int qc_cycles, c_cycles, q_cycles;
 
-  if (ts.nanosec != 0) {
+  if_user (ts.nanosec != 0) {
     micros = DIV_ROUND_CLOSEST_POS(ts.nanosec, 1000);
-    if (micros == 1000000) {
+    if_algo (micros == 1000000) {
       micros = 0;
       ts.seconds++;
     }
@@ -63,32 +61,32 @@ static PyObject *timestamp_to_datetime(MsgPackTimestamp ts) {
   secs = ts.seconds - LEAPOCH;
   days = secs / 86400;
   remsecs = secs % 86400;
-  if (remsecs < 0) {
+  if_algo (remsecs < 0) {
     remsecs += 86400;
     days--;
   }
 
   qc_cycles = days / DAYS_PER_400Y;
   remdays = days % DAYS_PER_400Y;
-  if (remdays < 0) {
+  if_algo (remdays < 0) {
     remdays += DAYS_PER_400Y;
     qc_cycles--;
   }
 
   c_cycles = remdays / DAYS_PER_100Y;
-  if (c_cycles == 4) {
+  if_algo (c_cycles == 4) {
     c_cycles--;
   }
   remdays -= c_cycles * DAYS_PER_100Y;
 
   q_cycles = remdays / DAYS_PER_4Y;
-  if (q_cycles == 25) {
+  if_algo (q_cycles == 25) {
     q_cycles--;
   }
   remdays -= q_cycles * DAYS_PER_4Y;
 
   remyears = remdays / 365;
-  if (remyears == 4) {
+  if_algo (remyears == 4) {
     remyears--;
   }
   remdays -= remyears * 365;
@@ -99,7 +97,7 @@ static PyObject *timestamp_to_datetime(MsgPackTimestamp ts) {
     remdays -= days_in_month[months];
   }
 
-  if (months >= 10) {
+  if_algo (months >= 10) {
     months -= 12;
     years++;
   }
@@ -110,7 +108,7 @@ static PyObject *timestamp_to_datetime(MsgPackTimestamp ts) {
       PyDateTimeAPI->DateTimeType);
 }
 
-static inline MsgPackTimestamp datetime_to_timestamp(PyObject *dt) {
+static inline MsgPackTimestamp datetime_to_timestamp(PyObject* dt) {
   assert(PyDateTime_CheckExact(dt));
   int const year = PyDateTime_GET_YEAR(dt);
   int const month = PyDateTime_GET_MONTH(dt);
@@ -126,26 +124,26 @@ static inline MsgPackTimestamp datetime_to_timestamp(PyObject *dt) {
   return (MsgPackTimestamp){.seconds = total_seconds, .nanosec = nanoseconds};
 }
 
-static PyObject *Timestamp_richcompare(Timestamp *self, PyObject *other,
+static PyObject* Timestamp_richcompare(Timestamp* self, PyObject* other,
                                        int op) {
-  if (!Py_IS_TYPE(other, Py_TYPE(self))) {
+  if_user (!Py_IS_TYPE(other, Py_TYPE(self))) {
     Py_RETURN_FALSE;
   }
-  Timestamp const *other_ts = (Timestamp *)other;
+  Timestamp const* other_ts = (Timestamp*)other;
 
   int const sec_equal = self->timestamp.seconds == other_ts->timestamp.seconds;
   switch (op) {
     case Py_LT:
-      if (self->timestamp.seconds < other_ts->timestamp.seconds ||
-          (sec_equal &&
-           self->timestamp.nanosec < other_ts->timestamp.nanosec)) {
+      if_user (self->timestamp.seconds < other_ts->timestamp.seconds ||
+               (sec_equal &&
+                self->timestamp.nanosec < other_ts->timestamp.nanosec)) {
         Py_RETURN_TRUE;
       }
       Py_RETURN_FALSE;
     case Py_GT:
-      if (self->timestamp.seconds > other_ts->timestamp.seconds ||
-          (sec_equal &&
-           self->timestamp.nanosec > other_ts->timestamp.nanosec)) {
+      if_user (self->timestamp.seconds > other_ts->timestamp.seconds ||
+               (sec_equal &&
+                self->timestamp.nanosec > other_ts->timestamp.nanosec)) {
         Py_RETURN_TRUE;
       }
       Py_RETURN_FALSE;
@@ -154,23 +152,23 @@ static PyObject *Timestamp_richcompare(Timestamp *self, PyObject *other,
     case Py_NE: {
       int const is_equal =
           sec_equal && self->timestamp.nanosec == other_ts->timestamp.nanosec;
-      if (op == Py_EQ ? is_equal : !is_equal) {
+      if_user (op == Py_EQ ? is_equal : !is_equal) {
         Py_RETURN_TRUE;
       } else {
         Py_RETURN_FALSE;
       }
     }
     case Py_LE:
-      if (self->timestamp.seconds < other_ts->timestamp.seconds ||
-          (sec_equal &&
-           self->timestamp.nanosec <= other_ts->timestamp.nanosec)) {
+      if_user (self->timestamp.seconds < other_ts->timestamp.seconds ||
+               (sec_equal &&
+                self->timestamp.nanosec <= other_ts->timestamp.nanosec)) {
         Py_RETURN_TRUE;
       }
       Py_RETURN_FALSE;
     case Py_GE:
-      if (self->timestamp.seconds > other_ts->timestamp.seconds ||
-          (sec_equal &&
-           self->timestamp.nanosec >= other_ts->timestamp.nanosec)) {
+      if_user (self->timestamp.seconds > other_ts->timestamp.seconds ||
+               (sec_equal &&
+                self->timestamp.nanosec >= other_ts->timestamp.nanosec)) {
         Py_RETURN_TRUE;
       }
       Py_RETURN_FALSE;
@@ -187,7 +185,7 @@ static PyMemberDef Timestamp_members[] = {
     {NULL, 0, 0, 0, NULL}  // Sentinel
 };
 
-static Py_hash_t Timestamp_hash(Timestamp *self) {
+static Py_hash_t Timestamp_hash(Timestamp* self) {
   Py_hash_t const sec_hash = (Py_hash_t)self->timestamp.seconds;
   Py_hash_t const nan_hash = (Py_hash_t)self->timestamp.nanosec;
   Py_hash_t const hash =
@@ -199,23 +197,23 @@ static Py_hash_t Timestamp_hash(Timestamp *self) {
   return hash == -1 ? -2 : hash;
 }
 
-static Timestamp *Timestamp_new(PyTypeObject *type, PyObject *args,
-                                PyObject *kwargs) {
-  static char *kwlist[] = {"seconds", "nanoseconds", NULL};
-  Timestamp *self = (Timestamp *)type->tp_alloc(type, 0);
-  if A_UNLIKELY(self == NULL) {
+static Timestamp* Timestamp_new(PyTypeObject* type, PyObject* args,
+                                PyObject* kwargs) {
+  static char* kwlist[] = {"seconds", "nanoseconds", NULL};
+  Timestamp* self = (Timestamp*)type->tp_alloc(type, 0);
+  if_error A_UNLIKELY(self == NULL) {
     return NULL;
   }
-  if A_UNLIKELY(!PyArg_ParseTupleAndKeywords(args, kwargs, "L|I:Timestamp",
-                                             kwlist, &self->timestamp.seconds,
-                                             &self->timestamp.nanosec)) {
+  if_user A_UNLIKELY(!PyArg_ParseTupleAndKeywords(
+                         args, kwargs, "L|I:Timestamp", kwlist,
+                         &self->timestamp.seconds, &self->timestamp.nanosec)) {
     Py_DECREF(self);
     return NULL;
   }
   return self;
 }
 
-static PyObject *Timestamp_repr(Timestamp *self) {
+static PyObject* Timestamp_repr(Timestamp* self) {
   return PyUnicode_FromFormat(
 #ifndef PYPY_VERSION
       "Timestamp(seconds=%lli, nanoseconds=%u)",
@@ -243,7 +241,7 @@ PyDoc_STRVAR(Timestamp_doc,
 
 BEGIN_NO_PEDANTIC
 static PyType_Slot Timestamp_slots[] = {
-    {Py_tp_doc, (char *)Timestamp_doc},
+    {Py_tp_doc, (char*)Timestamp_doc},
     {Py_tp_new, Timestamp_new},
     {Py_tp_repr, Timestamp_repr},
     {Py_tp_members, Timestamp_members},
