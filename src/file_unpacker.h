@@ -10,25 +10,25 @@ static FileUnpacker* FileUnpacker_new(PyTypeObject* type, PyObject* args,
                                       PyObject* kwargs) {
   PyObject* file = NULL;
   PyObject* read_size = NULL;  // default argument to call read with
-  if (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
+  if_error (!PyArg_ParseTuple(args, "O|O:FileUnpacker", &file, &read_size)) {
     return NULL;
   }
 
   PyObject* read_callback = PyObject_GetAttrString(file, "read");
-  if A_UNLIKELY(read_callback == NULL) {
+  if_user A_UNLIKELY(read_callback == NULL) {
     return NULL;  // PyObject_GetAttrString already set the exception
   }
 
-  if A_UNLIKELY(Py_TYPE(read_callback)->tp_call == NULL) {
+  if_user A_UNLIKELY(Py_TYPE(read_callback)->tp_call == NULL) {
     PyErr_Format(PyExc_TypeError, "`%s.read` must be callable",
                  Py_TYPE(file)->tp_name);
     goto error;
   }
 
-  if (read_size == NULL) {
+  if_user (read_size == NULL) {
     // use default value of -1
     read_size = PyLong_FromLong(-1);
-    if A_UNLIKELY(read_size == NULL) {
+    if_error A_UNLIKELY(read_size == NULL) {
       goto error;
     }
   } else {
@@ -36,12 +36,12 @@ static FileUnpacker* FileUnpacker_new(PyTypeObject* type, PyObject* args,
   }
 
   PyObject* no_args = PyTuple_New(0);
-  if A_UNLIKELY(no_args == NULL) {
+  if_error A_UNLIKELY(no_args == NULL) {
     goto error;  // GCOVR_EXCL_LINE
   }
   FileUnpacker* self = (FileUnpacker*)Unpacker_new(type, no_args, kwargs);
   Py_DECREF(no_args);
-  if A_UNLIKELY(self == NULL) {
+  if_error A_UNLIKELY(self == NULL) {
     goto error;
   }
   self->read_callback = read_callback;
@@ -57,10 +57,10 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
   // 1. Try to unpack current data
   {
     PyObject* current = Unpacker_iternext(&self->unpacker);
-    if A_UNLIKELY(PyErr_Occurred() != NULL) {
+    if_error A_UNLIKELY(PyErr_Occurred() != NULL) {
       return NULL;
     }
-    if (current != NULL) {
+    if_algo (current != NULL) {
       return current;
     }
   }
@@ -69,10 +69,10 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
   do {
     // 2. Read some bytes
     PyObject* bytes = PyObject_CallOneArg(self->read_callback, self->read_size);
-    if A_UNLIKELY(bytes == NULL) {
+    if_error A_UNLIKELY(bytes == NULL) {
       return NULL;
     }
-    if A_UNLIKELY(PyBytes_CheckExact(bytes) == 0) {
+    if_user A_UNLIKELY(PyBytes_CheckExact(bytes) == 0) {
       PyErr_Format(PyExc_TypeError, "a bytes object is required, not '%.100s'",
                    Py_TYPE(bytes)->tp_name);
       return NULL;
@@ -80,7 +80,7 @@ static PyObject* FileUnpacker_iternext(FileUnpacker* self) {
     // 3. Push bytes to the deque
     int const append_result = deque_append(&self->unpacker.deque, bytes);
     Py_DECREF(bytes);
-    if A_UNLIKELY(append_result != 0) {
+    if_error A_UNLIKELY(append_result != 0) {
       return NULL;
     }
 

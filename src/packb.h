@@ -1,17 +1,16 @@
 #include "ext.h"
 #include "raw.h"
 
-#define AMSGPACK_RESIZE(n)                                        \
-  do {                                                            \
-    if A_UNLIKELY(capacity < size + n) {                          \
-      capacity += Py_MAX(capacity, n);                            \
-      if A_UNLIKELY(_PyBytes_Resize(&buffer_py, capacity) != 0) { \
-        goto error;                                               \
-      }                                                           \
-      data = PyBytes_AS_STRING(buffer_py);                        \
-    }                                                             \
+#define AMSGPACK_RESIZE(n)                                              \
+  do {                                                                  \
+    if_algo A_UNLIKELY(capacity < size + n) {                           \
+      capacity += Py_MAX(capacity, n);                                  \
+      if_error A_UNLIKELY(_PyBytes_Resize(&buffer_py, capacity) != 0) { \
+        goto error;                                                     \
+      }                                                                 \
+      data = PyBytes_AS_STRING(buffer_py);                              \
+    }                                                                   \
   } while (0)
-#define HAVE_FROZENDICT (PY_VERSION_HEX >= 0x030F0000)
 
 static inline void put2(char* dst, char header, char value) {
   dst[0] = header;
@@ -80,26 +79,26 @@ static Packer* Packer_new(PyTypeObject* type, PyObject* args,
                           PyObject* kwargs) {
   AMsgPackState* state =
       get_amsgpack_state(((PyHeapTypeObject*)type)->ht_module);
-  if A_UNLIKELY(state == NULL) {
+  if_error A_UNLIKELY(state == NULL) {
     return NULL;
   };
   static char* keywords[] = {"default", NULL};
   PyObject* default_hook = NULL;
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:Packer", keywords,
-                                   &default_hook)) {
+  if_user (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O:Packer", keywords,
+                                        &default_hook)) {
     return NULL;
   }
-  if A_UNLIKELY(default_hook != NULL &&
-                Py_TYPE(default_hook)->tp_call == NULL) {
+  if_user A_UNLIKELY(default_hook != NULL &&
+                     Py_TYPE(default_hook)->tp_call == NULL) {
     PyErr_SetString(PyExc_TypeError, "`default` must be callable");
     return NULL;
   }
   Packer* self = (Packer*)type->tp_alloc(type, 0);
-  if A_UNLIKELY(self == NULL) {
+  if_error A_UNLIKELY(self == NULL) {
     return NULL;
   }
   self->state = state;
-  if (default_hook != NULL) {
+  if_user (default_hook != NULL) {
     self->default_hook = Py_NewRef(default_hook);
   }
 
@@ -112,23 +111,23 @@ static void Packer_dealloc(Packer* self) {
 }
 
 #define PACK_LONG_LONG()                          \
-  if (value >= -0x20) {                           \
-    if (value < 0x80) {                           \
+  if_user (value >= -0x20) {                      \
+    if_user (value < 0x80) {                      \
       /* fixint */                                \
       AMSGPACK_RESIZE(1);                         \
       data[size] = (char)value;                   \
       size += 1;                                  \
-    } else if (value <= 0xff) {                   \
+    } else if_user (value <= 0xff) {              \
       /* uint 8 */                                \
       AMSGPACK_RESIZE(2);                         \
       put2(data + size, '\xcc', (uint8_t)value);  \
       size += 2;                                  \
-    } else if (value <= 0xffff) {                 \
+    } else if_user (value <= 0xffff) {            \
       /* unit 16 */                               \
       AMSGPACK_RESIZE(3);                         \
       put3(data + size, '\xcd', (uint16_t)value); \
       size += 3;                                  \
-    } else if (value <= 0xffffffff) {             \
+    } else if_user (value <= 0xffffffff) {        \
       /* unit 32 */                               \
       AMSGPACK_RESIZE(5);                         \
       put5(data + size, '\xce', (uint32_t)value); \
@@ -140,17 +139,17 @@ static void Packer_dealloc(Packer* self) {
       size += 9;                                  \
     }                                             \
   } else {                                        \
-    if (value >= -0x80) {                         \
+    if_user (value >= -0x80) {                    \
       /* int 8 */                                 \
       AMSGPACK_RESIZE(2);                         \
       put2(data + size, '\xd0', (char)value);     \
       size += 2;                                  \
-    } else if (value >= -0x8000) {                \
+    } else if_user (value >= -0x8000) {           \
       /* int 16 */                                \
       AMSGPACK_RESIZE(3);                         \
       put3(data + size, '\xd1', (uint16_t)value); \
       size += 3;                                  \
-    } else if (value >= -0x80000000LL) {          \
+    } else if_user (value >= -0x80000000LL) {     \
       /* int 32 */                                \
       AMSGPACK_RESIZE(5);                         \
       put5(data + size, '\xd2', (uint32_t)value); \
@@ -167,7 +166,7 @@ static PyObject* packer_packb(Packer* self, PyObject* obj) {
   Py_ssize_t capacity = 1024;
   Py_ssize_t size = 0;
   PyObject* buffer_py = PyBytes_FromStringAndSize(NULL, capacity);
-  if A_UNLIKELY(buffer_py == NULL) {
+  if_error A_UNLIKELY(buffer_py == NULL) {
     return NULL;
   }
   char* data = PyBytes_AS_STRING(buffer_py);
@@ -179,24 +178,24 @@ static PyObject* packer_packb(Packer* self, PyObject* obj) {
 pack_next:
   obj_type = Py_TYPE(obj);
 pack_next_with_obj_type_set:
-  if A_UNLIKELY(obj_type == &PyFloat_Type) {
+  if_user A_UNLIKELY(obj_type == &PyFloat_Type) {
     // https://docs.python.org/3/c-api/float.html
     AMSGPACK_RESIZE(9);
     put9_dbl(data + size, '\xcb', PyFloat_AS_DOUBLE(obj));
     size += 9;
-  } else if A_UNLIKELY(obj_type == &PyUnicode_Type) {
+  } else if_user A_UNLIKELY(obj_type == &PyUnicode_Type) {
     // https://docs.python.org/3.11/c-api/unicode.html
     Py_ssize_t u8size;
     char const* u8string;
   obj_is_unicode:
-    if A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj)) {
+    if_user A_LIKELY(PyUnicode_IS_COMPACT_ASCII(obj)) {
       u8size = ((PyASCIIObject*)obj)->length;
       u8string = (char*)(((PyASCIIObject*)obj) + 1);
     } else {
       u8size = ((PyCompactUnicodeObject*)obj)->utf8_length;
-      if A_LIKELY(u8size == 0) {
+      if_user A_LIKELY(u8size == 0) {
         u8string = PyUnicode_AsUTF8AndSize(obj, &u8size);
-        if A_UNLIKELY(u8string == NULL) {
+        if_error A_UNLIKELY(u8string == NULL) {
           goto error;
         }
       } else {
@@ -204,19 +203,19 @@ pack_next_with_obj_type_set:
       }
     }
 
-    if A_LIKELY(u8size <= 0xf) {
+    if_user A_LIKELY(u8size <= 0xf) {
       AMSGPACK_RESIZE(1 + u8size);
       data[size] = '\xa0' + (char)u8size;
       size += 1;
-    } else if (u8size <= 0xff) {
+    } else if_user (u8size <= 0xff) {
       AMSGPACK_RESIZE(2 + u8size);
       put2(data + size, '\xd9', (uint8_t)u8size);
       size += 2;
-    } else if A_UNLIKELY(u8size <= 0xffff) {
+    } else if_user A_UNLIKELY(u8size <= 0xffff) {
       AMSGPACK_RESIZE(3 + u8size);
       put3(data + size, '\xda', (uint16_t)u8size);
       size += 3;
-    } else if A_UNLIKELY(u8size <= 0xffffffff) {
+    } else if_user A_UNLIKELY(u8size <= 0xffffffff) {
       AMSGPACK_RESIZE(5 + u8size);
       put5(data + size, '\xdb', (uint32_t)u8size);
       size += 5;
@@ -227,31 +226,32 @@ pack_next_with_obj_type_set:
     }
     memcpy(data + size, u8string, u8size);
     size += u8size;
-  } else if A_UNLIKELY(obj_type == &PyLong_Type) {
+  } else if_user A_UNLIKELY(obj_type == &PyLong_Type) {
     // https://docs.python.org/3/c-api/long.html
     long long const value = PyLong_AsLongLong(obj);
-    if A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
+    if_error A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
       goto error;
     }
     PACK_LONG_LONG();
-  } else if A_UNLIKELY(obj_type == &PyList_Type || obj_type == &PyTuple_Type) {
+  } else if_user A_UNLIKELY(obj_type == &PyList_Type ||
+                            obj_type == &PyTuple_Type) {
     // https://docs.python.org/3.11/c-api/list.html
-    if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
+    if_user A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
     }
     Py_ssize_t const length = (obj_type == &PyList_Type)
                                   ? PyList_GET_SIZE(obj)
                                   : PyTuple_GET_SIZE(obj);
-    if A_LIKELY(length <= 0x0f) {
+    if_user A_LIKELY(length <= 0x0f) {
       AMSGPACK_RESIZE(1);
       data[size] = '\x90' + (char)length;
       size += 1;
-    } else if (length <= 0xffff) {
+    } else if_user (length <= 0xffff) {
       AMSGPACK_RESIZE(3);
       put3(data + size, '\xdc', (uint16_t)length);
       size += 3;
-    } else if (length <= 0xffffffff) {
+    } else if_user (length <= 0xffffffff) {
       AMSGPACK_RESIZE(5);
       put5(data + size, '\xdd', (uint32_t)length);
       size += 5;
@@ -280,34 +280,34 @@ pack_next_with_obj_type_set:
     }
     while (item->pos != length && Py_TYPE(values[item->pos]) == &PyLong_Type) {
       long long const value = PyLong_AsLongLong(values[item->pos++]);
-      if A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
+      if_user A_UNLIKELY(value == -1 && PyErr_Occurred() != NULL) {
         goto error;
       }
       PACK_LONG_LONG();
     }
-  } else if
-#if HAVE_FROZENDICT
+  } else if_user
+#ifdef HAVE_FROZENDICT
       A_UNLIKELY(obj_type == &PyDict_Type || obj_type == &PyFrozenDict_Type)
 #else
       A_UNLIKELY(obj_type == &PyDict_Type)
 #endif
   {
-    if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
+    if_user A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
     }
     // https://docs.python.org/3.11/c-api/dict.html
     Py_ssize_t const dict_size = PyDict_Size(obj);
 
-    if A_LIKELY(dict_size <= 15) {
+    if_user A_LIKELY(dict_size <= 15) {
       AMSGPACK_RESIZE(1);
       data[size] = '\x80' + (char)dict_size;
       size += 1;
-    } else if (dict_size <= 0xffff) {
+    } else if_user (dict_size <= 0xffff) {
       AMSGPACK_RESIZE(3);
       put3(data + size, '\xde', (uint16_t)dict_size);
       size += 3;
-    } else if (dict_size <= 0xffffffff) {
+    } else if_user (dict_size <= 0xffffffff) {
       AMSGPACK_RESIZE(5);
       put5(data + size, '\xdf', (uint32_t)dict_size);
       size += 5;
@@ -318,28 +318,28 @@ pack_next_with_obj_type_set:
     }
     stack[stack_length++] = (PackbStack){
         .action = KEY_NEXT, .sequence = obj, .size = dict_size, .pos = 0};
-  } else if A_UNLIKELY(obj_type == &PyBytes_Type ||
-                       obj_type == &PyByteArray_Type) {
+  } else if_user A_UNLIKELY(obj_type == &PyBytes_Type ||
+                            obj_type == &PyByteArray_Type) {
     // https://docs.python.org/3.11/c-api/bytes.html
     // https://docs.python.org/3.11/c-api/bytearray.html
     char* bytes_buffer;
     Py_ssize_t bytes_size;
-    if A_LIKELY(obj_type == &PyBytes_Type) {
+    if_user A_LIKELY(obj_type == &PyBytes_Type) {
       bytes_size = PyBytes_GET_SIZE(obj);
       bytes_buffer = PyBytes_AS_STRING(obj);
     } else {
       bytes_size = PyByteArray_GET_SIZE(obj);
       bytes_buffer = PyByteArray_AS_STRING(obj);
     }
-    if A_LIKELY(bytes_size <= 0xff) {
+    if_user A_LIKELY(bytes_size <= 0xff) {
       AMSGPACK_RESIZE(2 + bytes_size);
       put2(data + size, '\xc4', (uint8_t)bytes_size);
       size += 2;
-    } else if (bytes_size <= 0xffff) {
+    } else if_user (bytes_size <= 0xffff) {
       AMSGPACK_RESIZE(3 + bytes_size);
       put3(data + size, '\xc5', (uint16_t)bytes_size);
       size += 3;
-    } else if (bytes_size <= 0xffffffff) {
+    } else if_user (bytes_size <= 0xffffffff) {
       AMSGPACK_RESIZE(5 + bytes_size);
       put5(data + size, '\xc6', (uint32_t)bytes_size);
       size += 5;
@@ -350,15 +350,15 @@ pack_next_with_obj_type_set:
     }
     memcpy(data + size, bytes_buffer, bytes_size);
     size += bytes_size;
-  } else if A_UNLIKELY(obj_type == &PyBool_Type) {
+  } else if_user A_UNLIKELY(obj_type == &PyBool_Type) {
     AMSGPACK_RESIZE(1);
     data[size] = obj == Py_True ? '\xc3' : '\xc2';
     size += 1;
-  } else if A_UNLIKELY(obj == Py_None) {
+  } else if_user A_UNLIKELY(obj == Py_None) {
     AMSGPACK_RESIZE(1);
     data[size] = '\xc0';
     size += 1;
-  } else if A_UNLIKELY(obj_type == state->ext_type) {
+  } else if_user A_UNLIKELY(obj_type == state->ext_type) {
     Ext const* ext = (Ext*)obj;
     Py_ssize_t const ext_data_length = PyBytes_GET_SIZE(ext->data);
     char const* data_bytes = PyBytes_AS_STRING(ext->data);
@@ -380,15 +380,15 @@ pack_next_with_obj_type_set:
         header = '\xd8';
         goto non_default;
       default:
-        if (ext_data_length <= 0xff) {
+        if_user (ext_data_length <= 0xff) {
           AMSGPACK_RESIZE(2 + 1 + ext_data_length);
           put2(data + size, '\xc7', (uint8_t)ext_data_length);
           size += 2;
-        } else if (ext_data_length <= 0xffff) {
+        } else if_user (ext_data_length <= 0xffff) {
           AMSGPACK_RESIZE(3 + 1 + ext_data_length);
           put3(data + size, '\xc8', (uint16_t)ext_data_length);
           size += 3;
-        } else if (ext_data_length <= 0xffffffff) {
+        } else if_user (ext_data_length <= 0xffffffff) {
           AMSGPACK_RESIZE(5 + 1 + ext_data_length);
           put5(data + size, '\xc9', (uint32_t)ext_data_length);
           size += 5;
@@ -406,19 +406,19 @@ pack_next_with_obj_type_set:
         memcpy(data + 2, data_bytes, ext_data_length);
         size += 2 + ext_data_length;
     }
-  } else if A_UNLIKELY(obj_type == state->raw_type) {
+  } else if_user A_UNLIKELY(obj_type == state->raw_type) {
     Py_ssize_t const raw_length = PyBytes_GET_SIZE(((Raw*)obj)->data);
     AMSGPACK_RESIZE(raw_length);
     memcpy(data + size, PyBytes_AS_STRING(((Raw*)obj)->data), raw_length);
     size += raw_length;
-  } else if A_UNLIKELY(PyDateTime_CheckExact(obj) ||
-                       obj_type == state->timestamp_type) {
+  } else if_user A_UNLIKELY(PyDateTime_CheckExact(obj) ||
+                            obj_type == state->timestamp_type) {
     MsgPackTimestamp const ts = obj_type == state->timestamp_type
                                     ? ((Timestamp*)obj)->timestamp
                                     : datetime_to_timestamp(obj);
-    if A_LIKELY((ts.seconds >> 34) == 0) {
+    if_user A_LIKELY((ts.seconds >> 34) == 0) {
       uint64_t const timestamp64 = ((int64_t)ts.nanosec << 34) | ts.seconds;
-      if A_LIKELY((timestamp64 & 0xffffffff00000000L) != 0) {
+      if_user A_LIKELY((timestamp64 & 0xffffffff00000000L) != 0) {
         // timestamp 64
         AMSGPACK_RESIZE(10);
         // packing fixext 8
@@ -466,17 +466,17 @@ pack_next_with_obj_type_set:
       data[size + 3 + 11] = (ts.seconds >> 000) & 0xff;
       size += 15;
     }
-  } else if A_LIKELY(self->default_hook == NULL) {
+  } else if_user A_LIKELY(self->default_hook == NULL) {
     PyErr_Format(PyExc_TypeError, "Unserializable '%s' object",
                  Py_TYPE(obj)->tp_name);
     goto error;
   } else {
-    if A_UNLIKELY(stack_length >= A_STACK_SIZE) {
+    if_user A_UNLIKELY(stack_length >= A_STACK_SIZE) {
       PyErr_SetString(PyExc_ValueError, "Deeply nested object");
       goto error;
     }
     obj = PyObject_CallOneArg(self->default_hook, obj);
-    if A_UNLIKELY(obj == NULL) {
+    if_user A_UNLIKELY(obj == NULL) {
       goto error;  // likely exception in user code
     }
     stack[stack_length++] =
@@ -488,21 +488,21 @@ pack_next_with_obj_type_set:
     PackbStack* item = &stack[stack_length - 1];
     switch (item->action) {
       case LIST_OR_TUPLE_NEXT:
-        if A_UNLIKELY(item->pos == item->size) {
+        if_algo A_UNLIKELY(item->pos == item->size) {
           stack_length -= 1;
           break;
         }
         obj = item->values[item->pos++];
         goto pack_next;
       case KEY_NEXT:
-        if A_UNLIKELY(item->pos == item->size) {
+        if_algo A_UNLIKELY(item->pos == item->size) {
           stack_length -= 1;
           break;
         }
         PyDict_Next(item->sequence, &item->pos, &obj, &item->value);
         item->action = VALUE_NEXT;
         obj_type = Py_TYPE(obj);
-        if A_LIKELY(obj_type == &PyUnicode_Type) {
+        if_user A_LIKELY(obj_type == &PyUnicode_Type) {
           goto obj_is_unicode;
         }
         goto pack_next_with_obj_type_set;
@@ -528,7 +528,7 @@ error:
   Py_XDECREF(buffer_py);
   while (stack_length) {
     PackbStack* item = &stack[stack_length - 1];
-    if (item->action == FREE_DEFAULT_RES) {
+    if_algo (item->action == FREE_DEFAULT_RES) {
       Py_DECREF(item->default_result);
     }
     stack_length -= 1;

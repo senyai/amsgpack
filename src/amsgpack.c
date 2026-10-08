@@ -1,6 +1,9 @@
 #include <Python.h>
+#include <datetime.h>      // PyDateTimeAPI
+#include <structmember.h>  // PyMemberDef
 
 #include "macros.h"
+#include "noif.h"
 
 #define A_STACK_SIZE 32  // common for packer and unpacker
 #define EMPTY_TUPLE_IDX 0xc4
@@ -41,7 +44,6 @@ static inline AMsgPackState* get_amsgpack_state(PyObject* module) {
   assert(state != NULL);
   return (AMsgPackState*)state;
 }
-
 #include "packb.h"
 
 // used in `Unpacker` and `FileUnpacker`
@@ -49,7 +51,6 @@ static PyObject* AnyUnpacker_iter(PyObject* self) {
   Py_INCREF(self);
   return self;
 }
-
 #include "unpacker.h"
 // include unpacker before file_unpacker
 #include "file_unpacker.h"
@@ -64,14 +65,14 @@ static PyObject* AnyUnpacker_iter(PyObject* self) {
 static inline int amsgpack_init_state(AMsgPackState* state) {
   for (int i = -32; i != 128; ++i) {
     PyObject* number = PyLong_FromLong(i);
-    if A_UNLIKELY(number == NULL) {
+    if_error A_UNLIKELY(number == NULL) {
       return -1;
     }
     state->byte_object[(unsigned char)i] = number;
   }
   // fixstr of length 0
   state->byte_object[EMPTY_STRING_IDX] = PyUnicode_FromStringAndSize(NULL, 0);
-  if A_UNLIKELY(state->byte_object[EMPTY_STRING_IDX] == NULL) {
+  if_error A_UNLIKELY(state->byte_object[EMPTY_STRING_IDX] == NULL) {
     return -1;
   }
   state->byte_object[0xc0] = Py_None;
@@ -81,7 +82,7 @@ static inline int amsgpack_init_state(AMsgPackState* state) {
   state->byte_object[0xc3] = Py_True;
   Py_INCREF(Py_True);
   state->byte_object[EMPTY_TUPLE_IDX] = PyTuple_New(0);  // amsgpack specific
-  if A_UNLIKELY(state->byte_object[EMPTY_TUPLE_IDX] == NULL) {
+  if_error A_UNLIKELY(state->byte_object[EMPTY_TUPLE_IDX] == NULL) {
     return -1;
   }
   return 0;
@@ -89,25 +90,27 @@ static inline int amsgpack_init_state(AMsgPackState* state) {
 
 static int amsgpack_exec(PyObject* module) {
   PyDateTime_IMPORT;
-  if (PyDateTimeAPI == NULL) {
+  if_error A_UNLIKELY(PyDateTimeAPI == NULL) {
     return -1;
   }
-  if (PyModule_AddStringConstant(module, "__version__", VERSION) != 0) {
+  if_error A_UNLIKELY(PyModule_AddStringConstant(module, "__version__",
+                                                 VERSION) != 0) {
     return -1;
   }
   AMsgPackState* state = get_amsgpack_state(module);
-  if (amsgpack_init_state(state) != 0) {
+  if_error A_UNLIKELY(amsgpack_init_state(state) != 0) {
     return -1;
   }
 #define ADD_TYPE(TypeName, type_name)                                          \
   state->type_name##_type =                                                    \
       (PyTypeObject*)PyType_FromModuleAndSpec(module, &TypeName##_spec, NULL); \
-  if (state->type_name##_type == NULL) {                                       \
+  if_error A_UNLIKELY(state->type_name##_type == NULL) {                       \
     assert(0);                                                                 \
     return -1;                                                                 \
   }                                                                            \
-  if (PyModule_AddObjectRef(module, #TypeName,                                 \
-                            (PyObject*)state->type_name##_type) < 0) {         \
+  if_error A_UNLIKELY(PyModule_AddObjectRef(                                   \
+                          module, #TypeName,                                   \
+                          (PyObject*)state->type_name##_type) < 0) {           \
     return -1;                                                                 \
   }
 
@@ -120,22 +123,22 @@ static int amsgpack_exec(PyObject* module) {
 #undef ADD_TYPE
   // create `unpackb`
   PyObject* unpacker = PyObject_CallNoArgs((PyObject*)state->unpacker_type);
-  if A_UNLIKELY(unpacker == NULL) {
+  if_error A_UNLIKELY(unpacker == NULL) {
     return -1;
   }
   PyObject* unpackb = PyObject_GetAttrString(unpacker, "unpackb");
   Py_DECREF(unpacker);
-  if (PyModule_AddObjectRef(module, "unpackb", unpackb) < 0) {
+  if_error A_UNLIKELY(PyModule_AddObjectRef(module, "unpackb", unpackb) < 0) {
     return -1;
   }
   // create `packb`
   PyObject* packer = PyObject_CallNoArgs((PyObject*)state->packer_type);
-  if A_UNLIKELY(packer == NULL) {
+  if_error A_UNLIKELY(packer == NULL) {
     return -1;
   }
   PyObject* packb = PyObject_GetAttrString(packer, "packb");
   Py_DECREF(packer);
-  if (PyModule_AddObjectRef(module, "packb", packb) < 0) {
+  if_error A_UNLIKELY(PyModule_AddObjectRef(module, "packb", packb) < 0) {
     return -1;
   }
   return 0;
@@ -158,9 +161,9 @@ static int amsgpack_traverse(PyObject* module, visitproc Py_UNUSED(visit),
   AMsgPackState* state = get_amsgpack_state(module);
   state->gc_cycle++;
   // amsgpack_traverse is usually called two times in a row, so:
-  if ((state->gc_cycle & 1) == 1) {
+  if_perf ((state->gc_cycle & 1) == 1) {
     int_fast8_t clear_part = state->gc_cycle / 2;
-    if (clear_part > 7) {
+    if_algo (clear_part > 7) {
       clear_part = state->gc_cycle = 0;
     }
     int const stride_el = CACHE_TABLE_SIZE / 8;
@@ -169,7 +172,7 @@ static int amsgpack_traverse(PyObject* module, visitproc Py_UNUSED(visit),
       PyObject* obj = state->unicode_cache[i].obj;
       // Technically, another module can hold strings in its cache
       // and we will never clear memory. Do not know what to do about it.
-      if (obj != NULL && Py_REFCNT(obj) == 1) {
+      if_algo (obj != NULL && Py_REFCNT(obj) == 1) {
         Py_DECREF(obj);
         reset_cache_entry(state->unicode_cache + i);
       }

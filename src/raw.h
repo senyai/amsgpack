@@ -3,7 +3,7 @@
 
 typedef struct {
   PyObject_HEAD
-  PyObject *data;  // store PyBytes only
+  PyObject* data;  // store PyBytes only
 } Raw;
 
 static PyMemberDef Raw_members[] = {
@@ -11,33 +11,33 @@ static PyMemberDef Raw_members[] = {
     {NULL, 0, 0, 0, NULL}  // Sentinel
 };
 
-static Raw *Raw_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-  static char *kwlist[] = {"data", NULL};
-  PyObject *data = NULL;
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:Raw", kwlist,
-                                   &PyBytes_Type, &data)) {
+static Raw* Raw_new(PyTypeObject* type, PyObject* args, PyObject* kwargs) {
+  static char* kwlist[] = {"data", NULL};
+  PyObject* data = NULL;
+  if_user (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!:Raw", kwlist,
+                                        &PyBytes_Type, &data)) {
     return NULL;
   }
-  Raw *self = (Raw *)type->tp_alloc(type, 0);
-  if A_UNLIKELY(self == NULL) {
+  Raw* self = (Raw*)type->tp_alloc(type, 0);
+  if_error A_UNLIKELY(self == NULL) {
     return NULL;
   }
   self->data = Py_NewRef(data);
   return self;
 }
 
-static void Raw_dealloc(Raw *self) {
+static void Raw_dealloc(Raw* self) {
   Py_DECREF(self->data);
-  Py_TYPE(self)->tp_free((PyObject *)self);
+  Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
-static Py_hash_t Raw_hash(Raw *self) { return PyObject_Hash(self->data); }
+static Py_hash_t Raw_hash(Raw* self) { return PyObject_Hash(self->data); }
 
-static PyObject *Raw_repr(Raw *self) {
+static PyObject* Raw_repr(Raw* self) {
   return PyUnicode_FromFormat("Raw(data=%R)", self->data);
 }
 
-static PyObject *Raw_richcompare(Raw *self, PyObject *other, int op) {
+static PyObject* Raw_richcompare(Raw* self, PyObject* other, int op) {
   return PyObject_RichCompare(self->data, other, op);
 }
 
@@ -55,7 +55,7 @@ PyDoc_STRVAR(
 
 BEGIN_NO_PEDANTIC
 static PyType_Slot Raw_slots[] = {
-    {Py_tp_doc, (char *)Raw_doc},
+    {Py_tp_doc, (char*)Raw_doc},
     {Py_tp_new, Raw_new},
     {Py_tp_dealloc, (destructor)Raw_dealloc},
     {Py_tp_repr, (reprfunc)Raw_repr},

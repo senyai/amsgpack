@@ -29,4 +29,8 @@
 #define END_NO_PEDANTIC
 #endif
 
+#if PY_VERSION_HEX >= 0x030F0000
+#define HAVE_FROZENDICT
+#endif
+
 #endif  // end A_INCLUDE_MACROS_H
