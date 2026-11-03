@@ -1,8 +1,8 @@
 ---
 BasedOnStyle: google
 Language: Cpp
-PointerAlignment: Left
-# DerivePointerAlignment: true
+# PointerAlignment: Left
+DerivePointerAlignment: true
 SpaceBeforeParensOptions:
   AfterForeachMacros: false
 SpaceBeforeParens: Custom
