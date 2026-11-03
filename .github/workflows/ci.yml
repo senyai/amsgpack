@@ -26,7 +26,7 @@ jobs:
       - run: pip install "pyright<1.2" && pip install -ve .
         env:
           CC: ${{ matrix.compiler }}
-      - run: python -m unittest -v
+      - run: cd test && python -m unittest -v
       - name: wheel
         run: |
           pip install build
