@@ -54,7 +54,7 @@ static PyObject* AnyUnpacker_iter(PyObject* self) {
 #include "unpacker.h"
 // include unpacker before file_unpacker
 #include "file_unpacker.h"
-#define VERSION "0.5.1"
+#define VERSION "0.5.2"
 
 /*
   amsgpack module
@@ -222,9 +222,13 @@ PyMODINIT_FUNC PyInit__amsgpack(void) {
 
 #ifdef AMSGPACK_FUZZER
 static PyObject* import_amsgpack(void) {
+  if_algo (PyImport_AppendInittab("_amsgpack", PyInit__amsgpack) == -1) {
+    return NULL;
+  }
   Py_InitializeEx(0);
-  PyObject* module = PyImport_ImportModule("amsgpack._amsgpack");
-  if (PyErr_Occurred()) {
+
+  PyObject* module = PyImport_ImportModule("_amsgpack");
+  if_error (PyErr_Occurred()) {
     printf("Python version: %s\n", Py_GetVersion());
     PyErr_Print();
   }
@@ -237,14 +241,14 @@ static PyObject* import_amsgpack(void) {
 // fuzzer, forgive me
 int LLVMFuzzerTestOneInput(uint8_t const* data, size_t size) {
   static PyObject* module = NULL;
-  if (module == NULL) {
+  if_algo (module == NULL) {
     module = import_amsgpack();
   }
   assert(PyErr_Occurred() == NULL);
   AMsgPackState* state = get_amsgpack_state(module);
   Unpacker* unpacker =
       (Unpacker*)PyObject_CallNoArgs((PyObject*)state->unpacker_type);
-  if (unpacker == NULL) {
+  if_error (unpacker == NULL) {
     PyErr_Print();
   }
   assert(unpacker != NULL);
@@ -255,7 +259,7 @@ int LLVMFuzzerTestOneInput(uint8_t const* data, size_t size) {
       assert(bytes != NULL);
       PyObject* feed_res = unpacker_feed(unpacker, bytes);
       Py_DECREF(bytes);
-      if (feed_res == NULL) {
+      if_error (feed_res == NULL) {
         Py_DECREF(unpacker);
         return -1;  // failed to feed, don't add to the corpus.
       } else {
@@ -265,7 +269,7 @@ int LLVMFuzzerTestOneInput(uint8_t const* data, size_t size) {
   }
   for (;;) {
     PyObject* unpacked_object = Unpacker_iternext(unpacker);
-    if (unpacked_object == NULL) {
+    if_algo (unpacked_object == NULL) {
       break;
     } else {
       Py_DECREF(unpacked_object);

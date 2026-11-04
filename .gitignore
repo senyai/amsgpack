@@ -4,17 +4,12 @@
 *.so
 *.pyd
 __pycache__
-# executable, produced by ./fuzzer.sh
-amsgpack_fuzzer
 # benchmark data
 *.mpack
 msgpack_benchmark.json
 *.speedscope
-*.gcno
-*.gcda
-/coverage
 *.log*
-# fuzzer corpus
-/corpus
 /.venv*
 /doc/_build
+.ninja_log
+.ninja_deps

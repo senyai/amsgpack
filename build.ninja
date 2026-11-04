@@ -1,69 +1,107 @@
+py_ver = 14
+
 rule run
   command = $cmd
+  pool = console
 
 #
-# Format (in-place)
+# Format C and Python (in-place)
 #
 build format: run
   cmd = clang-format --verbose -i src/*.h src/amsgpack.c && $
     python3 -m black .;
+
+shared_lib_path = amsgpack/_amsgpack.cpython-3${py_ver}-x86_64-linux-gnu.so
+
+#
+# Build library
+#
+
+cc = gcc
+
+rule build_lib
+  depfile = $out.d
+  deps = gcc
+  command = $
+    $cc $cflags -fPIC -shared `python3.${py_ver}-config --includes` $
+      $in $
+      -MD -MF $out.d $
+      `python3.${py_ver}-config --ldflags` $
+      -o $out
+  pool = console
+
 
 #
 # Test
 #
 
 build unittest: phony $
-  test/test_amsgpack.py $
-  test/test_ext.py $
-  test/test_file_unpacker.py $
-  test/test_pack.py $
-  test/test_suite.py $
-  test/test_timestamp.py $
-  test/test_typing.py $
-  test/test_unpack.py
+  test/test/test_amsgpack.py $
+  test/test/test_ext.py $
+  test/test/test_file_unpacker.py $
+  test/test/test_pack.py $
+  test/test/test_suite.py $
+  test/test/test_timestamp.py $
+  test/test/test_typing.py $
+  test/test/test_unpack.py $
+  test/sitecustomize.py
+
+build build/test/$shared_lib_path: build_lib src/amsgpack.c
+  cflags = -O0 -g
 
 rule test
-  depfile = $out.d
-  deps = gcc
   command = $
-    gcc -O0 -fPIC -shared `python3-config --includes` $
-      $in $
-      -MD -MF $out.d $
-      `python3-config --ldflags` $
-      -o amsgpack/_amsgpack.cpython-310-x86_64-linux-gnu.so && $
-    python -m unittest
+    cd test && $
+    PYTHONPATH=.:../build/test $
+      python -m unittest
   pool = console
-build test: test src/amsgpack.c | unittest
+build unittest_test: test build/test/$shared_lib_path | unittest
+build test: phony unittest_test
 
 #
 # Coverage
 #
-rule coverage
-  depfile = $out.d
-  deps = gcc
+
+build build/coverage/$shared_lib_path: build_lib src/amsgpack.c
+  cflags = --coverage -O0
+
+rule coverage_gcno
   command = $
-    gcc --coverage -O0 -fPIC -shared `python3-config --includes` $
-      $in $
-      -MD -MF $out.d $
-      `python3-config --ldflags` $
-      --coverage $
-      -o amsgpack/_amsgpack.cpython-310-x86_64-linux-gnu.so && $
-    python -m unittest && $
-    mkdir -p coverage && $
-    gcovr --html-details -o $out && $
-    echo 'opening in a web browser "$out"' && $
-    python -m webbrowser "$out"
+    cd test && $
+    PYTHONPATH=.:../build/coverage $
+      python -m unittest
   pool = console
-build coverage/coverage_report.html: coverage src/amsgpack.c | unittest
-build coverage: phony coverage/coverage_report.html
+
+rule coverage_report
+  command = $
+    cd build/coverage && $
+    gcovr $
+      --object-directory amsgpack $
+      --root ../.. $
+      --html-details -o coverage_report.html && $
+    echo 'opening in a web browser coverage_report.html' && $
+    python -m webbrowser coverage_report.html
+  pool = console
+
+gcno_path = build/coverage/${shared_lib_path}-amsgpack.gcno
+build $gcno_path : coverage_gcno $
+  build/coverage/$shared_lib_path | unittest
+
+build build/coverage/coverage_report.html: coverage_report $
+  $gcno_path | unittest
+build coverage: phony build/coverage/coverage_report.html
 
 #
 # Fuzzer
 #
 
+build build/fuzzer/$shared_lib_path: build_lib src/amsgpack.c
+  cflags = -g
+
 rule build_fuzzer
   depfile = $out.d
   deps = gcc
+  description = generate fuzzer executable with clang
   command = $
     clang -DAMSGPACK_FUZZER=1 $
         -g3 -O0 $
@@ -71,21 +109,39 @@ rule build_fuzzer
         -fsanitize=address $
         -fsanitize=undefined $
         -fPIE $
-        $$(python3-config --includes) $
-        $in $$(python3-config --ldflags --embed) $
+        $$(python3.${py_ver}-config --includes) $
+        $in $$(python3.${py_ver}-config --ldflags --embed) $
          -MD -MF $out.d $
         -o $out
-build amsgpack_fuzzer : build_fuzzer src/amsgpack.c
+build build/fuzzer/amsgpack_fuzzer : build_fuzzer src/amsgpack.c
 
-build fuzzer: run | amsgpack_fuzzer
+build fuzzer: run | build/fuzzer/amsgpack_fuzzer
   cmd = $
-    mkdir -p corpus && $
+    mkdir -p build/fuzzer/corpus && $
+    cd build/fuzzer && $
     ASAN_OPTIONS=symbolize=1:print_stacktrace=1,detect_leaks=1,log_path=amsgpack_leak.log $
-    ./amsgpack_fuzzer corpus
+    PYTHONPATH=. $
+      ./amsgpack_fuzzer corpus
+
+#
+# valgrind
+#
+
+build build/valgrind/$shared_lib_path: build_lib src/amsgpack.c
+  cflags = -g
+build valgrind: run | build/valgrind/$shared_lib_path unittest
+  cmd = $
+    cd test && $
+    PYTHONMALLOC=malloc PYTHONPATH=.:../build/valgrind $
+      valgrind $
+        --leak-check=full $
+        --show-leak-kinds=definite $
+        --track-origins=yes $
+      python -m unittest -v
   pool = console
 
 #
-# misc
+# help
 #
 build show_help: run
   cmd = echo -e $

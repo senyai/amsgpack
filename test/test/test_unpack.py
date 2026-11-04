@@ -2,8 +2,8 @@ from amsgpack import packb, Unpacker, Ext, unpackb, Raw, Timestamp
 import sys
 from typing import TypeAlias, cast
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
-from .test_amsgpack import SequenceTestCase
-from unittest import skipUnless
+from .test_amsgpack import SequenceTestCase, is_running_under_valgrind
+from unittest import skipUnless, skipIf
 from datetime import datetime, timezone
 
 RecursiveDict: TypeAlias = "dict[int, RecursiveDict | None]"
@@ -196,6 +196,7 @@ class UnpackerTest(SequenceTestCase):
             u.feed(seq)
         self.assertEqual(list(u), [124, "", 0])
 
+    @skipIf(is_running_under_valgrind(), "valgrind is running")
     @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_bin_PyBytes_FromStringAndSize_malloc(self) -> None:
         u = Unpacker()
@@ -295,7 +296,7 @@ class UnpackbTest(SequenceTestCase):
 
     def test_extra_data(self) -> None:
         with self.assertRaises(ValueError) as context:
-            unpackb(b"\x01\x02")
+            unpackb(b"\xc4\x14test_for_memory_leak\x02")
         self.assertEqual(str(context.exception), "Extra data")
 
     def test_incomplete_data(self) -> None:

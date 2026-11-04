@@ -104,6 +104,7 @@ typedef struct {
 } Unpacker;
 
 static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
+  // `PyErr_Format` sets the error indicator and returns NULL.
   return PyErr_Format(PyExc_ValueError, "%s size %zd is too big (>%zd)", type,
                       length, limit);
 }
@@ -712,17 +713,13 @@ static PyObject* unpacker_unpackb(Unpacker* self, PyObject* obj) {
     if_user A_UNLIKELY(PyErr_Occurred() == NULL) {
       PyErr_SetString(PyExc_ValueError, "Incomplete MessagePack format");
     }
-    goto error;
-  }
-  if_user A_UNLIKELY(self->deque.deque_first != NULL) {
+  } else if_user A_UNLIKELY(self->deque.deque_first != NULL) {
     PyErr_SetString(PyExc_ValueError, "Extra data");
-    goto error;
+    Py_DECREF(ret);
+    ret = NULL;
   }
   unpacker_reset_(self);
   return ret;
-error:
-  unpacker_reset_(self);
-  return NULL;
 }
 
 static void Unpacker_dealloc(Unpacker* self) {

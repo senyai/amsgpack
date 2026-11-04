@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+import os
 from unittest import TestCase
 from amsgpack import packb, Ext, Raw, Unpacker
 
@@ -12,6 +13,11 @@ Value = (
     | None
     | Ext
 )
+
+
+def is_running_under_valgrind() -> bool:
+    ld_preload = os.environ.get("LD_PRELOAD", "")
+    return "vgpreload" in ld_preload or "VALGRIND_LAUNCHER" in os.environ
 
 
 class SequenceTestCase(TestCase):
