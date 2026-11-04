@@ -295,7 +295,7 @@ class UnpackbTest(SequenceTestCase):
 
     def test_extra_data(self) -> None:
         with self.assertRaises(ValueError) as context:
-            unpackb(b"\x01\x02")
+            unpackb(b"\xc4\x14test_for_memory_leak\x02")
         self.assertEqual(str(context.exception), "Extra data")
 
     def test_incomplete_data(self) -> None:
