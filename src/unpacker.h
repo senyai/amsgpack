@@ -104,6 +104,7 @@ typedef struct {
 } Unpacker;
 
 static PyObject* size_error(char type[], Py_ssize_t length, Py_ssize_t limit) {
+  // `PyErr_Format` sets the error indicator and returns NULL.
   return PyErr_Format(PyExc_ValueError, "%s size %zd is too big (>%zd)", type,
                       length, limit);
 }
