@@ -41,13 +41,28 @@ static inline void deque_pop_first(Deque *deque, Py_ssize_t size_first) {
   deque->size -= size_first;
 }
 
+// just like `deque_pop_first`, but for fast deque cleaning
+static inline void deque_disregard_first(Deque *deque) {
+  assert(deque->deque_first);
+  assert(deque->deque_last);
+  BytesNode *next = deque->deque_first->next;
+  Py_DECREF(deque->deque_first->bytes);
+  PyMem_Free(deque->deque_first);
+  deque->deque_first = next;
+  if_algo (next == NULL) {
+    deque->deque_last = next;
+  }
+}
+
 static inline void deque_clean(Deque *deque) {
   while (deque->deque_first) {
-    deque_pop_first(deque, 0);
+    deque_disregard_first(deque);
   }
-  deque->size = 0;
   deque->deque_bytes = NULL;
   deque->size_first = 0;
+  deque->deque_last = NULL;  // good for CPU pipeline
+  deque->size = 0;
+  deque->pos = 0;
 }
 
 // INCREFs `bytes` after `bytes` were successfully put onto the deque
