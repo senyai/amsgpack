@@ -54,7 +54,7 @@ static PyObject* AnyUnpacker_iter(PyObject* self) {
 #include "unpacker.h"
 // include unpacker before file_unpacker
 #include "file_unpacker.h"
-#define VERSION "0.5.1"
+#define VERSION "0.5.2"
 
 /*
   amsgpack module
