@@ -1,10 +1,10 @@
 from typing import Any, cast
 import sys
-from unittest import TestCase, skipUnless
+from unittest import TestCase, skipUnless, skipIf
 from math import pi
 from amsgpack import packb, Ext, unpackb, Timestamp, Packer
 from struct import pack
-from .test_amsgpack import SequenceTestCase
+from .test_amsgpack import SequenceTestCase, is_running_under_valgrind
 from .failing_malloc import failing_malloc, AVAILABLE as FAILING_AVAILABLE
 
 
@@ -145,6 +145,7 @@ class PackbTest(SequenceTestCase):
             packb(outer)
         self.assertEqual(str(context.exception), "Deeply nested object")
 
+    @skipIf(is_running_under_valgrind(), "valgrind is running")
     @skipUnless(FAILING_AVAILABLE, "not failing available")
     def test_initial_buffer_failure(self):
         with self.assertRaises(MemoryError), failing_malloc(1023, "raw"):

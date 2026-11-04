@@ -1,12 +1,13 @@
-from unittest import TestCase
+from unittest import TestCase, skipIf
 from amsgpack import Ext, Unpacker, Packer
 from subprocess import run
 import sys
 from json import loads
 import re
+from .test_amsgpack import is_running_under_valgrind
 
 
-def _run_pyright_types():
+def _run_pyright_types() -> dict[str, str]:
     r = run(
         [sys.executable, "-m", "pyright", "--outputjson", __file__],
         capture_output=True,
@@ -39,6 +40,7 @@ def _run_pyright_on_whole_project():
     ]
 
 
+@skipIf(is_running_under_valgrind(), "valgrind is running")
 class UnpackTyping(TestCase):
     def pyright_packer_without_default(self):
         packer_without_default = Packer().packb
